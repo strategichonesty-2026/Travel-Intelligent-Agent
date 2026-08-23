@@ -19,6 +19,11 @@ router.get('/favorites/ranked', (req, res) => {
   res.json({ results: ranked });
 });
 
+// GET /campgrounds/discover — similar campgrounds found beyond the favorite list (spec section 11)
+router.get('/discover', (req, res) => {
+  res.json({ results: campgroundService.listSimilarDiscoveries() });
+});
+
 // GET /campgrounds/favorites/:id — single record with evidence + qualification detail
 router.get('/favorites/:id', (req, res) => {
   const found = campgroundService.findFavoriteById(req.params.id);
@@ -32,7 +37,7 @@ router.get('/favorites/:id/booking', async (req, res, next) => {
     const found = campgroundService.findFavoriteById(req.params.id);
     if (!found) return res.status(404).json({ error: 'Campground not found' });
     const booking = await campgroundService.buildBookingInfo(found);
-    res.json({ campgroundId: found.id, name: found.name, ...booking });
+    res.json({ campgroundId: found.id, name: found.resolvedName, ...booking });
   } catch (err) {
     next(err);
   }

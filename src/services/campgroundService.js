@@ -1,4 +1,4 @@
-const { FAVORITE_CAMPGROUNDS } = require('../data/favoriteCampgrounds');
+const { FAVORITE_CAMPGROUNDS, SIMILAR_CAMPGROUND_DISCOVERY } = require('../data/favoriteCampgrounds');
 const { evaluateCampsiteQualification, QUALIFICATION_VERDICT, calculateCampingTotalCost } = require('../domain/campingQualification');
 const { DEFAULT_CAMPING_WEIGHTS, computeWeightedScore } = require('../domain/scoringEngine');
 const { validateBookingLink, determineBookingStatus, determineButtonLabel, LINK_TYPE } = require('../domain/bookingStatus');
@@ -25,9 +25,20 @@ function getQualifiedFavorites() {
 }
 
 function findFavoriteById(id) {
-  const found = FAVORITE_CAMPGROUNDS.find((c) => c.id === id);
+  const found = FAVORITE_CAMPGROUNDS.find((c) => c.id === id) || SIMILAR_CAMPGROUND_DISCOVERY.find((c) => c.id === id);
   if (!found) return null;
   return { ...found, qualification: evaluateCampsiteQualification(toQualificationInput(found)) };
+}
+
+/**
+ * Spec section 11: campgrounds discovered as similar to the favorite list but not on it.
+ * Same strict qualification evaluation applies — nothing here is pre-qualified.
+ */
+function listSimilarDiscoveries() {
+  return SIMILAR_CAMPGROUND_DISCOVERY.map((c) => ({
+    ...c,
+    qualification: evaluateCampsiteQualification(toQualificationInput(c)),
+  }));
 }
 
 /**
@@ -132,6 +143,7 @@ module.exports = {
   listFavorites,
   getQualifiedFavorites,
   findFavoriteById,
+  listSimilarDiscoveries,
   buildBookingInfo,
   rankFavoritesByValue,
   calculateCampingTotalCost,
