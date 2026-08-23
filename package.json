@@ -1,0 +1,25 @@
+{
+  "name": "travel-intelligence-agent",
+  "version": "0.1.0",
+  "description": "Autonomous Travel Intelligence Agent — seasonal-aware trip discovery, campground research/qualification, and booking-link surfacing",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test",
+    "lint": "eslint ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.6.1",
+    "helmet": "^8.3.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.5"
+  }
+}
