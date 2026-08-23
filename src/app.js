@@ -3,6 +3,7 @@ const helmet = require('helmet');
 const recommendationsRouter = require('./routes/recommendations');
 const campgroundsRouter = require('./routes/campgrounds');
 const scoringRouter = require('./routes/scoring');
+const dashboardRouter = require('./routes/dashboard');
 
 function createApp() {
   const app = express();
@@ -16,6 +17,7 @@ function createApp() {
     res.json({ status: 'ok' });
   });
 
+  app.use('/', dashboardRouter);
   app.use('/recommendations', recommendationsRouter);
   app.use('/campgrounds', campgroundsRouter);
   app.use('/scoring', scoringRouter);

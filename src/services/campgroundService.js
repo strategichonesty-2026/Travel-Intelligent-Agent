@@ -48,7 +48,7 @@ function listSimilarDiscoveries() {
 async function checkLinkAccessible(url) {
   if (!url) return false;
   try {
-    const res = await fetch(url, { method: 'HEAD', redirect: 'follow' });
+    const res = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(5000) });
     return res.ok || (res.status >= 300 && res.status < 400);
   } catch {
     return false;
