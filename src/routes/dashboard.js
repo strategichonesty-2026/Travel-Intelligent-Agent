@@ -1,7 +1,36 @@
 const express = require('express');
 const campgroundService = require('../services/campgroundService');
+const { getAutomaticRecommendations } = require('../services/recommendationService');
 
 const router = express.Router();
+
+const PREFERENCE_OPTIONS = ['camping', 'scenery', 'waterfront', 'hiking', 'swimming', 'fishing', 'warm weather', 'relaxation', 'road trip'];
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function renderTripCard(rec) {
+  const statusStyle = STATUS_STYLE[rec.bookingStatus] || STATUS_STYLE.RESEARCH_ONLY;
+  return `
+  <article class="card">
+    <div class="card-head">
+      <h3>${esc(rec.name)}</h3>
+      <span class="badge" style="background:#1e3a5f;color:#bfdbfe">${rec.discoveryScore}/100</span>
+    </div>
+    <p class="loc">${esc(rec.region)} · season: ${esc(rec.season)}</p>
+    <p class="flags" style="color:#9ca3af">${esc(rec.reason)}</p>
+    <div class="meta">
+      <span>seasonal fit: ${rec.seasonalFitScore}/100</span>
+      <span>preference match: ${rec.preferenceMatchScore}/100</span>
+      <span>trip score: ${rec.tripScore}/100</span>
+    </div>
+    <div class="booking">
+      <span class="badge" style="background:${statusStyle.bg};color:${statusStyle.fg}">${esc(rec.bookingStatus)}</span>
+    </div>
+    <p class="disclaimer">${esc(rec.bookingStatusReason)}</p>
+  </article>`;
+}
 
 const VERDICT_STYLE = {
   QUALIFIED: { label: 'QUALIFIED', bg: '#0f5132', fg: '#d1f2df' },
@@ -95,13 +124,19 @@ router.get('/', async (req, res, next) => {
     const rankedIds = new Set(ranked.map((c) => c.id));
     const rest = favorites.filter((c) => !rankedIds.has(c.id));
 
+    const startDate = typeof req.query.startDate === 'string' && req.query.startDate ? req.query.startDate : todayIso();
+    const selectedPrefs = typeof req.query.preferences === 'string' && req.query.preferences
+      ? req.query.preferences.split(',').map((p) => p.trim()).filter(Boolean)
+      : [];
+    const trips = await getAutomaticRecommendations({ startDate, preferences: selectedPrefs });
+
     res.set('Content-Type', 'text/html; charset=utf-8');
     res.send(`<!doctype html>
 <html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Travel Intelligence Agent — Favorite Campground List</title>
+<title>Travel Intelligence Agent</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -129,11 +164,35 @@ router.get('/', async (req, res, next) => {
   details a { color: #93c5fd; word-break: break-all; }
   .notes { color: #9ca3af; font-size: 11px; }
   .empty { color: #6b7280; font-size: 13px; }
+  .trip-form { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; background: #131a22; border: 1px solid #1f2937; border-radius: 10px; padding: 16px; margin-bottom: 8px; }
+  .trip-form label { font-size: 12px; color: #d1d5db; display: flex; align-items: center; gap: 6px; }
+  .trip-form input[type="date"] { background: #0b0f14; border: 1px solid #374151; color: #e5e7eb; border-radius: 6px; padding: 4px 8px; }
+  .trip-form fieldset { border: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+  .trip-form legend { font-size: 11px; color: #6b7280; padding: 0; }
+  .chip { background: #0b0f14; border: 1px solid #374151; border-radius: 999px; padding: 4px 10px; font-size: 12px; }
+  .trip-form button.btn { border: none; cursor: pointer; font: inherit; }
 </style>
 </head>
 <body>
-  <h1>🏕 Favorite Campground List</h1>
-  <p class="sub">Traveler home: ZIP 55449 · ${favorites.length} researched favorites · ${discoveries.length} similar discoveries · ${qualified.length} pass strict qualification</p>
+  <h1>🧭 Travel Intelligence Agent</h1>
+  <p class="sub">Traveler home: ZIP 55449, Minnesota</p>
+
+  <h2>Vacation destination discovery (spec §1-3)</h2>
+  <form class="trip-form" method="get">
+    <label>Trip start date <input type="date" name="startDate" value="${esc(startDate)}" /></label>
+    <fieldset>
+      <legend>Preferences</legend>
+      ${PREFERENCE_OPTIONS.map((p) => `<label class="chip"><input type="checkbox" name="preferences" value="${esc(p)}" ${selectedPrefs.includes(p) ? 'checked' : ''} /> ${esc(p)}</label>`).join('')}
+    </fieldset>
+    <button type="submit" class="btn">Discover destinations</button>
+  </form>
+  <p class="sub">No destination required — pick a date and preferences and the engine discovers candidates (currently: a curated summer-outdoor / warm-escape catalog scored by season + preference match). Flights and hotels have no live adapter configured yet, so every result is RESEARCH_ONLY, not bookable.</p>
+  <div class="grid">
+    ${trips.length ? trips.map(renderTripCard).join('') : '<p class="empty">No destination cleared the minimum score for this date/preference combination.</p>'}
+  </div>
+
+  <h1 style="margin-top:40px">🏕 Favorite Campground List</h1>
+  <p class="sub">${favorites.length} researched favorites · ${discoveries.length} similar discoveries · ${qualified.length} pass strict qualification</p>
 
   <h2>Ranked (qualified)</h2>
   <div class="grid">
