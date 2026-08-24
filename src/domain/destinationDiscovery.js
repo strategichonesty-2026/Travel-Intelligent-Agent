@@ -1,5 +1,23 @@
 const { getSeasonalContext, computeSeasonalFitScore } = require('./seasonalEngine');
-const { SUMMER_OUTDOOR_DESTINATIONS, WARM_ESCAPE_DESTINATIONS } = require('../data/seasonalDestinations');
+const { SUMMER_OUTDOOR_DESTINATIONS, WARM_ESCAPE_DESTINATIONS, CRUISE_DESTINATIONS } = require('../data/seasonalDestinations');
+
+const ALL_DESTINATIONS = [...SUMMER_OUTDOOR_DESTINATIONS, ...WARM_ESCAPE_DESTINATIONS, ...CRUISE_DESTINATIONS];
+
+/**
+ * Unlike discoverDestinations (which only scores the one seasonally-relevant pool and drops
+ * anything below minScore), this returns every catalog entry for a given category regardless of
+ * season — used for browsing a category tab (e.g. "Mexico") rather than getting best-match
+ * recommendations. Still computes a seasonal fit for the given date so the browse view can show
+ * whether now is actually a good time to go.
+ */
+function getDestinationsByCategory(category, startDate) {
+  return ALL_DESTINATIONS
+    .filter((d) => d.category === category)
+    .map((d) => {
+      const seasonalFit = computeSeasonalFitScore(d, startDate);
+      return { ...d, seasonalFitScore: seasonalFit.score, seasonalFitReason: seasonalFit.reason };
+    });
+}
 
 /**
  * Maps free-text traveler preferences (e.g. "Camping", "Scenery", "Waterfront") to the tag
@@ -66,6 +84,7 @@ function discoverDestinations(input, { minScore = 40, limit = 8 } = {}) {
       destinationId: destination.id,
       name: destination.name,
       region: destination.region,
+      category: destination.category,
       seasonalFitScore: seasonalFit.score,
       preferenceMatchScore: preferenceMatch,
       discoveryScore: combined,
@@ -80,4 +99,4 @@ function discoverDestinations(input, { minScore = 40, limit = 8 } = {}) {
     .slice(0, limit);
 }
 
-module.exports = { discoverDestinations, normalizePreferenceTags };
+module.exports = { discoverDestinations, normalizePreferenceTags, getDestinationsByCategory };

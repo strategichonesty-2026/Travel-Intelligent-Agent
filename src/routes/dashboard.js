@@ -1,10 +1,23 @@
 const express = require('express');
 const campgroundService = require('../services/campgroundService');
 const { getAutomaticRecommendations } = require('../services/recommendationService');
+const { getDestinationsByCategory } = require('../domain/destinationDiscovery');
 
 const router = express.Router();
 
 const PREFERENCE_OPTIONS = ['camping', 'scenery', 'waterfront', 'hiking', 'swimming', 'fishing', 'warm weather', 'relaxation', 'road trip'];
+
+const TABS = [
+  { id: 'discover', label: '🧭 Discover' },
+  { id: 'camping', label: '🏕 Camping' },
+  { id: 'colorado', label: '🏔 Colorado' },
+  { id: 'niagara', label: '🌊 Niagara Falls & Great Lakes' },
+  { id: 'mexico', label: '🌵 Mexico' },
+  { id: 'socal', label: '☀️ Southern California' },
+  { id: 'florida', label: '🌴 Florida' },
+  { id: 'southwest', label: '🏜 Arizona & Nevada' },
+  { id: 'cruise', label: '🚢 Cruise' },
+];
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -57,6 +70,21 @@ function hookupIcon(value) {
 
 function fmtHours(h) {
   return typeof h === 'number' ? `~${h}h from 55449` : 'distance unknown';
+}
+
+function renderCategoryCard(d) {
+  return `
+  <article class="card">
+    <div class="card-head">
+      <h3>${esc(d.name)}</h3>
+      <span class="badge" style="background:#1e3a5f;color:#bfdbfe">fit: ${d.seasonalFitScore}/100</span>
+    </div>
+    <p class="loc">${esc(d.region)}</p>
+    <p class="flags" style="color:#9ca3af">${esc(d.seasonalFitReason)}</p>
+    <div class="facts">${d.tags.map((t) => `<span>${esc(t)}</span>`).join('')}</div>
+    ${d.hurricaneRiskNote ? `<p class="disclaimer">⚠ ${esc(d.hurricaneRiskNote)}</p>` : ''}
+    <p class="disclaimer">Curated candidate, not independently researched like the campground list — no live flights/hotels adapter configured, so this is discovery-only, not bookable.</p>
+  </article>`;
 }
 
 function isUrl(str) {
@@ -112,23 +140,82 @@ function renderCard(c, booking) {
 
 router.get('/', async (req, res, next) => {
   try {
-    const favorites = campgroundService.listFavorites();
-    const discoveries = campgroundService.listSimilarDiscoveries();
-    const qualified = campgroundService.getQualifiedFavorites();
-    const ranked = campgroundService.rankFavoritesByValue(qualified);
-
-    const allForBooking = [...favorites, ...discoveries];
-    const bookingResults = await Promise.all(allForBooking.map((c) => campgroundService.buildBookingInfo(c)));
-    const bookingById = Object.fromEntries(allForBooking.map((c, i) => [c.id, bookingResults[i]]));
-
-    const rankedIds = new Set(ranked.map((c) => c.id));
-    const rest = favorites.filter((c) => !rankedIds.has(c.id));
-
+    const activeTab = TABS.some((t) => t.id === req.query.tab) ? req.query.tab : 'discover';
     const startDate = typeof req.query.startDate === 'string' && req.query.startDate ? req.query.startDate : todayIso();
-    const selectedPrefs = typeof req.query.preferences === 'string' && req.query.preferences
-      ? req.query.preferences.split(',').map((p) => p.trim()).filter(Boolean)
-      : [];
-    const trips = await getAutomaticRecommendations({ startDate, preferences: selectedPrefs });
+    const selectedPrefs = Array.isArray(req.query.preferences)
+      ? req.query.preferences
+      : typeof req.query.preferences === 'string' && req.query.preferences
+        ? req.query.preferences.split(',').map((p) => p.trim()).filter(Boolean)
+        : [];
+
+    function tabHref(tabId) {
+      const params = new URLSearchParams();
+      params.set('tab', tabId);
+      params.set('startDate', startDate);
+      for (const p of selectedPrefs) params.append('preferences', p);
+      return `?${params.toString()}`;
+    }
+
+    let campgroundSection = '';
+    let discoverSection = '';
+    let categorySection = '';
+
+    if (activeTab === 'camping') {
+      const favorites = campgroundService.listFavorites();
+      const discoveries = campgroundService.listSimilarDiscoveries();
+      const qualified = campgroundService.getQualifiedFavorites();
+      const ranked = campgroundService.rankFavoritesByValue(qualified);
+
+      const allForBooking = [...favorites, ...discoveries];
+      const bookingResults = await Promise.all(allForBooking.map((c) => campgroundService.buildBookingInfo(c)));
+      const bookingById = Object.fromEntries(allForBooking.map((c, i) => [c.id, bookingResults[i]]));
+
+      const rankedIds = new Set(ranked.map((c) => c.id));
+      const rest = favorites.filter((c) => !rankedIds.has(c.id));
+
+      campgroundSection = `
+  <p class="sub">${favorites.length} researched favorites · ${discoveries.length} similar discoveries · ${qualified.length} pass strict qualification</p>
+
+  <h2>Ranked (qualified)</h2>
+  <div class="grid">
+    ${ranked.length ? ranked.map((c) => renderCard(c, bookingById[c.id])).join('') : '<p class="empty">Nothing currently passes every mandatory requirement.</p>'}
+  </div>
+
+  <h2>Rest of favorite list</h2>
+  <div class="grid">
+    ${rest.map((c) => renderCard(c, bookingById[c.id])).join('')}
+  </div>
+
+  <h2>Similar discoveries (spec §11)</h2>
+  <div class="grid">
+    ${discoveries.map((c) => renderCard(c, bookingById[c.id])).join('')}
+  </div>`;
+    } else if (activeTab === 'discover') {
+      const trips = await getAutomaticRecommendations({ startDate, preferences: selectedPrefs });
+      discoverSection = `
+  <form class="trip-form" method="get">
+    <input type="hidden" name="tab" value="discover" />
+    <label>Trip start date <input type="date" name="startDate" value="${esc(startDate)}" /></label>
+    <fieldset>
+      <legend>Preferences</legend>
+      ${PREFERENCE_OPTIONS.map((p) => `<label class="chip"><input type="checkbox" name="preferences" value="${esc(p)}" ${selectedPrefs.includes(p) ? 'checked' : ''} /> ${esc(p)}</label>`).join('')}
+    </fieldset>
+    <button type="submit" class="btn">Discover destinations</button>
+  </form>
+  <p class="sub">No destination required — pick a date and preferences and the engine discovers candidates across the full catalog, scored by season + preference match. Flights and hotels have no live adapter configured yet, so every result is RESEARCH_ONLY, not bookable.</p>
+  <div class="grid">
+    ${trips.length ? trips.map(renderTripCard).join('') : '<p class="empty">No destination cleared the minimum score for this date/preference combination.</p>'}
+  </div>`;
+    } else if (activeTab === 'cruise') {
+      categorySection = `<p class="empty">No cruise line data has been researched yet — spec section 4 lists "cruise line" as a booking-link category, but nothing here fabricates itineraries or pricing without a real source. This tab will populate once that research pass happens.</p>`;
+    } else {
+      const items = getDestinationsByCategory(activeTab, startDate);
+      categorySection = `
+  <p class="sub">Seasonal fit is computed for ${esc(startDate)} — change the date on the Discover tab to see how it shifts.</p>
+  <div class="grid">
+    ${items.length ? items.map(renderCategoryCard).join('') : '<p class="empty">No catalog entries for this category yet.</p>'}
+  </div>`;
+    }
 
     res.set('Content-Type', 'text/html; charset=utf-8');
     res.send(`<!doctype html>
@@ -171,43 +258,24 @@ router.get('/', async (req, res, next) => {
   .trip-form legend { font-size: 11px; color: #6b7280; padding: 0; }
   .chip { background: #0b0f14; border: 1px solid #374151; border-radius: 999px; padding: 4px 10px; font-size: 12px; }
   .trip-form button.btn { border: none; cursor: pointer; font: inherit; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 20px 0 28px; border-bottom: 1px solid #1f2937; padding-bottom: 12px; }
+  .tab { color: #9ca3af; text-decoration: none; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 999px; background: #131a22; border: 1px solid #1f2937; }
+  .tab.active { color: #fff; background: #2563eb; border-color: #2563eb; }
+  .tab:hover { color: #e5e7eb; }
 </style>
 </head>
 <body>
   <h1>🧭 Travel Intelligence Agent</h1>
   <p class="sub">Traveler home: ZIP 55449, Minnesota</p>
 
-  <h2>Vacation destination discovery (spec §1-3)</h2>
-  <form class="trip-form" method="get">
-    <label>Trip start date <input type="date" name="startDate" value="${esc(startDate)}" /></label>
-    <fieldset>
-      <legend>Preferences</legend>
-      ${PREFERENCE_OPTIONS.map((p) => `<label class="chip"><input type="checkbox" name="preferences" value="${esc(p)}" ${selectedPrefs.includes(p) ? 'checked' : ''} /> ${esc(p)}</label>`).join('')}
-    </fieldset>
-    <button type="submit" class="btn">Discover destinations</button>
-  </form>
-  <p class="sub">No destination required — pick a date and preferences and the engine discovers candidates (currently: a curated summer-outdoor / warm-escape catalog scored by season + preference match). Flights and hotels have no live adapter configured yet, so every result is RESEARCH_ONLY, not bookable.</p>
-  <div class="grid">
-    ${trips.length ? trips.map(renderTripCard).join('') : '<p class="empty">No destination cleared the minimum score for this date/preference combination.</p>'}
-  </div>
+  <nav class="tabs">
+    ${TABS.map((t) => `<a class="tab${t.id === activeTab ? ' active' : ''}" href="${tabHref(t.id)}">${t.label}</a>`).join('')}
+  </nav>
 
-  <h1 style="margin-top:40px">🏕 Favorite Campground List</h1>
-  <p class="sub">${favorites.length} researched favorites · ${discoveries.length} similar discoveries · ${qualified.length} pass strict qualification</p>
-
-  <h2>Ranked (qualified)</h2>
-  <div class="grid">
-    ${ranked.length ? ranked.map((c) => renderCard(c, bookingById[c.id])).join('') : '<p class="empty">Nothing currently passes every mandatory requirement.</p>'}
-  </div>
-
-  <h2>Rest of favorite list</h2>
-  <div class="grid">
-    ${rest.map((c) => renderCard(c, bookingById[c.id])).join('')}
-  </div>
-
-  <h2>Similar discoveries (spec §11)</h2>
-  <div class="grid">
-    ${discoveries.map((c) => renderCard(c, bookingById[c.id])).join('')}
-  </div>
+  <h2>${esc(TABS.find((t) => t.id === activeTab).label)}</h2>
+  ${discoverSection}
+  ${campgroundSection}
+  ${categorySection}
 </body>
 </html>`);
   } catch (err) {

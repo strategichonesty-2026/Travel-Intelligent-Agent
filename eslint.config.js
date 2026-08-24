@@ -13,6 +13,7 @@ module.exports = [
         console: 'readonly',
         fetch: 'readonly',
         AbortSignal: 'readonly',
+        URLSearchParams: 'readonly',
         __dirname: 'readonly',
         URL: 'readonly',
         setTimeout: 'readonly',
