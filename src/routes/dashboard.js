@@ -5,16 +5,17 @@ const { getDestinationsByCategory } = require('../domain/destinationDiscovery');
 
 const router = express.Router();
 
-// "Basecamp" palette — bold WPA-poster travel aesthetic.
-const NAVY = '#13232a';
-const CARD = '#1c333c';
-const CREAM = '#f3ede2';
-const MUTED = '#9db0b3';
-const ORANGE = '#e8a33d';
-const RED = '#d1495b';
-const TEAL = '#3f7a75';
-const VIOLET = '#5b5aa8';
-const SLATE = '#2a3b42';
+// "Trail Report" palette — warm data-analyst aesthetic (grotesk + mono, olive/clay accents).
+const BG = '#f7f3ea';
+const CARD = '#fffdf8';
+const INK = '#241f1a';
+const MUTED = '#8a7f6e';
+const BORDER = '#e3dac8';
+const CLAY = '#b5583a';
+const OLIVE = '#6b7a4f';
+const RED = '#a13f3f';
+const TEAL = '#3f6e7a';
+const VIOLET = '#6a5b96';
 
 const PREFERENCE_OPTIONS = ['camping', 'scenery', 'waterfront', 'hiking', 'swimming', 'fishing', 'warm weather', 'relaxation', 'road trip'];
 
@@ -31,16 +32,16 @@ const TABS = [
 ];
 
 const VERDICT_STYLE = {
-  QUALIFIED: { label: 'QUALIFIED', bg: ORANGE, fg: NAVY },
-  CONDITIONAL_FAILED: { label: 'FAILED REQUIREMENT', bg: RED, fg: CREAM },
-  INSUFFICIENT_EVIDENCE: { label: 'INSUFFICIENT EVIDENCE', bg: SLATE, fg: MUTED },
+  QUALIFIED: { label: 'QUALIFIED', bg: OLIVE, fg: '#f4f1e8' },
+  CONDITIONAL_FAILED: { label: 'FAILED REQUIREMENT', bg: RED, fg: '#f9eeee' },
+  INSUFFICIENT_EVIDENCE: { label: 'INSUFFICIENT EVIDENCE', bg: BORDER, fg: MUTED },
 };
 
 const STATUS_STYLE = {
-  BOOKING_READY: { bg: ORANGE, fg: NAVY },
-  CHECK_AVAILABILITY: { bg: TEAL, fg: CREAM },
-  RESEARCH_ONLY: { bg: SLATE, fg: MUTED },
-  MONITOR: { bg: VIOLET, fg: CREAM },
+  BOOKING_READY: { bg: OLIVE, fg: '#f4f1e8' },
+  CHECK_AVAILABILITY: { bg: TEAL, fg: '#eef4f5' },
+  RESEARCH_ONLY: { bg: BORDER, fg: MUTED },
+  MONITOR: { bg: VIOLET, fg: '#f1eef9' },
 };
 
 function todayIso() {
@@ -247,76 +248,71 @@ router.get('/', async (req, res, next) => {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Travel Intelligence Agent</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Work+Sans:wght@400;500;600;700&display=swap" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" />
 <style>
-  :root { color-scheme: dark; }
+  :root { color-scheme: light; }
   * { box-sizing: border-box; }
-  body { margin: 0; padding: 0 0 48px; background: ${NAVY}; color: ${CREAM}; font: 15px/1.55 'Work Sans', -apple-system, sans-serif; }
+  body { margin: 0; padding: 0 0 48px; background: ${BG}; color: ${INK}; font: 15px/1.55 'Space Grotesk', -apple-system, sans-serif; }
   main { padding: 0 40px; }
   .masthead { padding: 36px 40px 0; }
-  .masthead-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
-  .eyebrow { font-family: 'Anton', sans-serif; font-size: 15px; letter-spacing: .14em; color: ${ORANGE}; }
-  .home { font-size: 11px; letter-spacing: .1em; color: ${MUTED}; }
-  h1 { font-family: 'Anton', sans-serif; font-size: 40px; line-height: .98; letter-spacing: .01em; margin: 0 0 22px; text-transform: uppercase; }
-  h2 { font-family: 'Anton', sans-serif; font-size: 18px; letter-spacing: .05em; text-transform: uppercase; color: ${CREAM}; margin: 34px 0 16px; padding-left: 14px; border-left: 6px solid ${ORANGE}; }
+  .masthead-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .eyebrow { display: flex; align-items: center; gap: 10px; font-family: 'Space Mono', monospace; font-size: 11px; letter-spacing: .1em; color: ${MUTED}; }
+  .eyebrow-dot { width: 10px; height: 10px; border-radius: 999px; background: ${OLIVE}; display: inline-block; }
+  .home { font-family: 'Space Mono', monospace; font-size: 11px; color: ${MUTED}; }
+  h1 { font-size: 32px; font-weight: 700; letter-spacing: -.01em; margin: 4px 0 22px; }
+  h2 { font-size: 15px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: ${INK}; margin: 34px 0 16px; padding-left: 12px; border-left: 4px solid ${OLIVE}; }
   .sub { color: ${MUTED}; margin: 0 0 24px; font-size: 13px; }
-  .ridge { width: 100%; height: 34px; display: block; margin-bottom: 6px; }
-  .tabs { display: flex; flex-wrap: wrap; gap: 0; margin: 6px 0 30px; }
-  .tab { color: ${MUTED}; text-decoration: none; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 10px 16px; background: transparent; }
-  .tab.active { color: ${NAVY}; background: ${ORANGE}; }
-  .tab:hover:not(.active) { color: ${CREAM}; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
-  .card { background: ${CARD}; padding: 20px; clip-path: polygon(0 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%); }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 30px; border-bottom: 1px solid ${BORDER}; }
+  .tab { color: ${MUTED}; text-decoration: none; font-size: 12px; font-weight: 600; padding: 9px 14px; background: transparent; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab.active { color: ${INK}; border-bottom-color: ${OLIVE}; }
+  .tab:hover:not(.active) { color: ${INK}; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .card { background: ${CARD}; border: 1px solid ${BORDER}; border-radius: 6px; padding: 20px; }
   .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
   .card-head h3 { margin: 0; font-size: 16px; font-weight: 700; }
-  .score { font-family: 'Anton', sans-serif; font-size: 22px; color: ${ORANGE}; white-space: nowrap; }
-  .badge { font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 4px 9px; white-space: nowrap; }
-  .ambig { color: ${ORANGE}; font-size: 12px; margin: 8px 0 0; }
+  .score { font-family: 'Space Mono', monospace; font-size: 20px; font-weight: 700; color: ${OLIVE}; white-space: nowrap; }
+  .badge { font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; padding: 4px 9px; border-radius: 4px; white-space: nowrap; }
+  .ambig { color: ${CLAY}; font-size: 12px; margin: 8px 0 0; }
   .loc { color: ${MUTED}; font-size: 12px; margin: 10px 0; }
   .reason { color: ${MUTED}; font-size: 12px; line-height: 1.6; margin: 8px 0; }
   .facts { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
-  .fact { font-size: 10px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; padding: 3px 8px; }
-  .fact-yes { background: rgba(232,163,61,.16); color: ${ORANGE}; }
-  .fact-no { background: rgba(209,73,91,.16); color: ${RED}; }
-  .fact-unk { background: rgba(157,176,179,.14); color: ${MUTED}; }
+  .fact { font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; }
+  .fact-yes { background: rgba(107,122,79,.14); color: ${OLIVE}; }
+  .fact-no { background: rgba(161,63,63,.12); color: ${RED}; }
+  .fact-unk { background: rgba(138,127,110,.14); color: ${MUTED}; }
   .flags { font-size: 12px; color: ${RED}; margin: 8px 0; }
-  .meta { display: flex; gap: 14px; font-size: 10px; font-weight: 600; letter-spacing: .03em; color: ${MUTED}; margin: 12px 0; flex-wrap: wrap; }
+  .meta { display: flex; gap: 14px; font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 400; color: ${MUTED}; margin: 12px 0; flex-wrap: wrap; }
   .booking { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
-  .btn { background: ${CREAM}; color: ${NAVY}; text-decoration: none; font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; padding: 8px 14px; }
+  .btn { background: ${INK}; color: ${CARD}; text-decoration: none; font-size: 11px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; padding: 8px 14px; border-radius: 4px; }
   .btn-disabled { color: ${MUTED}; font-size: 11px; font-style: italic; }
-  .disclaimer { font-size: 10px; color: ${MUTED}; margin: 8px 0 0; opacity: .8; }
+  .disclaimer { font-size: 10px; color: ${MUTED}; margin: 8px 0 0; }
   details { margin-top: 12px; font-size: 12px; }
-  summary { cursor: pointer; color: ${ORANGE}; font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; }
+  summary { cursor: pointer; color: ${CLAY}; font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
   details ul { margin: 8px 0; padding-left: 18px; }
-  details a { color: ${ORANGE}; word-break: break-all; }
-  details a:hover { color: ${RED}; }
+  details a { color: ${CLAY}; word-break: break-all; }
+  details a:hover { color: ${OLIVE}; }
   .notes { color: ${MUTED}; font-size: 11px; }
   .empty { color: ${MUTED}; font-size: 13px; }
-  .trip-form { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; background: ${CARD}; padding: 20px; margin-bottom: 10px; }
-  .trip-form label { font-size: 12px; color: ${CREAM}; display: flex; align-items: center; gap: 8px; }
-  .trip-form input[type="date"] { background: ${NAVY}; border: 1px solid #2f4650; color: ${CREAM}; padding: 6px 10px; font-family: inherit; }
+  .trip-form { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; background: ${CARD}; border: 1px solid ${BORDER}; border-radius: 6px; padding: 20px; margin-bottom: 10px; }
+  .trip-form label { font-size: 12px; color: ${INK}; display: flex; align-items: center; gap: 8px; }
+  .trip-form input[type="date"] { background: ${BG}; border: 1px solid ${BORDER}; border-radius: 4px; color: ${INK}; padding: 6px 10px; font-family: inherit; }
   .trip-form fieldset { border: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
-  .trip-form legend { font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: ${MUTED}; padding: 0; margin-bottom: 6px; }
-  .chip { background: transparent; border: 1px solid #2f4650; color: ${MUTED}; padding: 6px 12px; font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
-  .chip:has(input:checked) { background: ${ORANGE}; border-color: ${ORANGE}; color: ${NAVY}; }
-  .submit-btn { border: none; cursor: pointer; font: inherit; background: ${ORANGE}; color: ${NAVY}; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 10px 20px; }
+  .trip-form legend { font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 400; letter-spacing: .04em; text-transform: uppercase; color: ${MUTED}; padding: 0; margin-bottom: 6px; }
+  .chip { background: transparent; border: 1px solid ${BORDER}; border-radius: 999px; color: ${MUTED}; padding: 6px 12px; font-size: 11px; font-weight: 600; }
+  .chip:has(input:checked) { background: ${OLIVE}; border-color: ${OLIVE}; color: #f4f1e8; }
+  .submit-btn { border: none; cursor: pointer; font: inherit; background: ${CLAY}; color: #fdf6f2; font-size: 12px; font-weight: 700; letter-spacing: .02em; padding: 10px 20px; border-radius: 4px; }
 </style>
 </head>
 <body>
-  <header class="masthead">
-    <div class="masthead-top">
-      <div class="eyebrow">BASECAMP</div>
-      <div class="home">ZIP 55449 &middot; MINNESOTA</div>
-    </div>
-    <h1>Travel Intelligence Agent</h1>
-  </header>
-
-  <svg class="ridge" viewBox="0 0 1200 60" preserveAspectRatio="none">
-    <polygon points="0,60 0,38 200,10 350,34 520,4 700,38 900,16 1200,42 1200,60" fill="${ORANGE}" opacity=".5"/>
-    <polygon points="0,60 0,50 260,26 460,48 660,22 880,50 1200,32 1200,60" fill="${RED}" opacity=".45"/>
-  </svg>
-
   <main>
+    <header class="masthead">
+      <div class="masthead-top">
+        <div class="eyebrow"><span class="eyebrow-dot"></span>TRAIL REPORT</div>
+        <div class="home">HOME: 55449 MN</div>
+      </div>
+      <h1>Travel Intelligence Agent</h1>
+    </header>
+
     <nav class="tabs">
       ${TABS.map((t) => `<a class="tab${t.id === activeTab ? ' active' : ''}" href="${tabHref(t.id)}">${esc(t.label)}</a>`).join('')}
     </nav>
