@@ -52,28 +52,35 @@ function preferenceOverlapScore(destinationTags, preferenceTags) {
 }
 
 /**
- * Spec section 3/28: the user need not name a destination — only dates, budget, travelers,
- * and preferences. This discovers and ranks candidates instead of requiring one up front.
+ * Spec section 3/28 (Phase 1) and Phase 2's "not limited to a hard-coded destination catalog":
+ * the user need not name a destination — only dates, budget, travelers, and preferences. This
+ * discovers and ranks candidates instead of requiring one up front.
+ *
+ * Phase 2 change: this used to pre-select a single pool (SUMMER_OUTDOOR or WARM_ESCAPE) by the
+ * query date's season before scoring anything, which meant a destination could never surface
+ * outside its "home" pool no matter how well it scored. It now scores the FULL catalog every
+ * time and lets computeSeasonalFitScore (an honest, date-driven function — see seasonalEngine.js)
+ * do the filtering: an off-season destination still gets scored, it just scores low and drops
+ * below minScore naturally, rather than being excluded from consideration before scoring even
+ * starts. The discovery engine is no longer structurally limited to one hardcoded pool — it's
+ * still a finite curated list (a live destination-search provider is out of scope until a future
+ * phase), but nothing about the ranking logic itself gates which entries can be considered.
  *
  * input: { startDate, endDate, budget, travelers, preferences: string[] }
+ * options.categoryFilter: optional array of catalog `category` values to restrict browsing to
+ * (e.g. ["mexico","socal","florida","southwest"] for a "warm getaway" browse) — a legitimate
+ * category restriction, distinct from the old season-based pool pre-selection this replaces.
  * Returns ranked candidates with an explanation for why each was surfaced (never forces a weak
  * destination into the results — anything below minScore is dropped).
  */
-function discoverDestinations(input, { minScore = 40, limit = 8, forcePool } = {}) {
+function discoverDestinations(input, { minScore = 40, limit = 8, categoryFilter } = {}) {
   const { startDate, preferences = [] } = input;
   const seasonalContext = getSeasonalContext(startDate);
   const preferenceTags = normalizePreferenceTags(preferences);
 
-  // forcePool lets a caller browse a pool regardless of today's season (e.g. a "Warm Getaway"
-  // quick action in August) — seasonal fit is still computed honestly against the real date, so a
-  // poor-season match still scores low rather than being hidden or inflated.
-  const pool = forcePool === 'WARM_ESCAPE'
-    ? WARM_ESCAPE_DESTINATIONS
-    : forcePool === 'SUMMER_OUTDOOR'
-      ? SUMMER_OUTDOOR_DESTINATIONS
-      : seasonalContext.season === 'WARM_ESCAPE'
-        ? WARM_ESCAPE_DESTINATIONS
-        : SUMMER_OUTDOOR_DESTINATIONS; // SHOULDER months fall back to the outdoor pool as a broad default
+  const pool = Array.isArray(categoryFilter)
+    ? ALL_DESTINATIONS.filter((d) => categoryFilter.includes(d.category))
+    : ALL_DESTINATIONS;
 
   const scored = pool.map((destination) => {
     const seasonalFit = computeSeasonalFitScore(destination, startDate);

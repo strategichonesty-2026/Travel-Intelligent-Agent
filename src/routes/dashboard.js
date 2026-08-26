@@ -67,6 +67,16 @@ const TRAVEL_TIME_STATUS_STYLE = {
   UNVERIFIED: { bg: BORDER, fg: MUTED },
 };
 
+const CANDIDATE_STATUS_STYLE = {
+  RECOMMENDED: { bg: OLIVE, fg: '#f4f1e8' },
+  STRETCH: { bg: 'rgba(181,88,58,.16)', fg: CLAY },
+  VALIDATED: { bg: 'rgba(63,110,122,.16)', fg: TEAL },
+  CANDIDATE: { bg: BORDER, fg: MUTED },
+  UNVERIFIED: { bg: BORDER, fg: MUTED },
+  RESEARCHING: { bg: BORDER, fg: MUTED },
+  EXCLUDED: { bg: RED, fg: '#f9eeee' },
+};
+
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -171,6 +181,7 @@ function renderDealRow(row) {
   const budgetStyle = BUDGET_STATUS_STYLE[row.budgetStatus.status] || BUDGET_STATUS_STYLE.UNVERIFIED;
   const timeStyle = TRAVEL_TIME_STATUS_STYLE[row.travelTimeStatus.status] || TRAVEL_TIME_STATUS_STYLE.UNVERIFIED;
   const bookingStyle = STATUS_STYLE[row.bookingStatus] || STATUS_STYLE.RESEARCH_ONLY;
+  const candidateStyle = CANDIDATE_STATUS_STYLE[row.candidateStatus] || CANDIDATE_STATUS_STYLE.UNVERIFIED;
   const costText = row.totalCost.amount != null ? `$${row.totalCost.amount.toLocaleString()}` : 'UNVERIFIED';
 
   return `
@@ -180,6 +191,7 @@ function renderDealRow(row) {
       <a href="${esc(row.detailHref)}">${esc(row.destination)}</a>
       <span class="mini">${esc(row.tripType.replace(/_/g, ' '))}</span>
     </td>
+    <td>${badge(row.candidateStatus, candidateStyle)}</td>
     <td>${esc(row.dates)}</td>
     <td>${esc(row.duration)}</td>
     <td>${esc(row.flightSummary)}</td>
@@ -197,6 +209,7 @@ function renderDealRow(row) {
 const SORTABLE_COLUMNS = [
   { key: null, label: 'Rank' },
   { key: null, label: 'Destination' },
+  { key: null, label: 'Status' },
   { key: null, label: 'Dates' },
   { key: null, label: 'Duration' },
   { key: null, label: 'Flight' },
@@ -401,6 +414,7 @@ router.get('/', async (req, res, next) => {
     const sort = ['value', 'cost', 'travelTime'].includes(req.query.sort) ? req.query.sort : 'value';
     const dir = req.query.dir === 'asc' ? 'asc' : 'desc';
     const requestedPage = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const includeExcluded = req.query.showExcluded === '1';
 
     const profile = profileService.getProfile();
 
@@ -430,6 +444,7 @@ router.get('/', async (req, res, next) => {
       // Changing sort order restarts at page 1 — the "25th cheapest" isn't the same row as the
       // "25th best value", so keeping the old page number would silently jump to a different set.
       if (startDate) params.set('startDate', startDate);
+      if (includeExcluded) params.set('showExcluded', '1');
       for (const p of selectedPrefs) params.append('preferences', p);
       return `?${params.toString()}`;
     }
@@ -442,7 +457,20 @@ router.get('/', async (req, res, next) => {
       params.set('dir', dir);
       params.set('page', String(p));
       if (startDate) params.set('startDate', startDate);
+      if (includeExcluded) params.set('showExcluded', '1');
       for (const pref of selectedPrefs) params.append('preferences', pref);
+      return `?${params.toString()}`;
+    }
+
+    function toggleExcludedHref() {
+      const params = new URLSearchParams();
+      params.set('tab', 'discover');
+      params.set('filter', filter);
+      params.set('sort', sort);
+      params.set('dir', dir);
+      if (startDate) params.set('startDate', startDate);
+      if (!includeExcluded) params.set('showExcluded', '1');
+      for (const p of selectedPrefs) params.append('preferences', p);
       return `?${params.toString()}`;
     }
 
@@ -482,7 +510,8 @@ router.get('/', async (req, res, next) => {
     ${discoveries.map((c) => renderCard(c, bookingById[c.id])).join('')}
   </div>`;
     } else if (activeTab === 'discover') {
-      const rows = await buildDealBoard({ profile, startDate: startDate || undefined, preferences: selectedPrefs, filter, sort, dir });
+      const rows = await buildDealBoard({ profile, startDate: startDate || undefined, preferences: selectedPrefs, filter, sort, dir, includeExcluded });
+      const excludedCount = rows.excludedCount || 0;
 
       const totalRows = rows.length;
       const { page, totalPages, startIndex, endIndex, pageStart, pageEnd } = paginate(totalRows, requestedPage, DEAL_TABLE_PAGE_SIZE);
@@ -504,7 +533,7 @@ router.get('/', async (req, res, next) => {
     </fieldset>
     <button type="submit" class="submit-btn">Refine search</button>
   </form>
-  <p class="sub">No destination required &mdash; the deal desk discovers candidates across researched camping data and the curated destination catalog, scored by season, preference match, and (for camping) real computed cost. Flights/hotels have no live adapter configured yet (Phase 3/4), so those columns read UNVERIFIED rather than a guessed number.</p>
+  <p class="sub">No destination required &mdash; the deal desk discovers candidates across researched camping data and the curated destination catalog, scored by season, preference match, and (for camping) real computed cost. Flights/hotels have no live adapter configured yet (Phase 3/4), so those columns read UNVERIFIED rather than a guessed number. Candidates that fail a hard budget/travel-time/qualification limit are excluded from ranking below${excludedCount || includeExcluded ? ` &mdash; <a href="${toggleExcludedHref()}">${includeExcluded ? 'hide excluded' : `show ${excludedCount} excluded`}</a>` : ''}.</p>
 
   ${renderDealTable(pageRows, { sort, dir, sortHref })}
   ${renderPagination({ page, totalPages, totalRows, pageStart, pageEnd, pageHref })}`;

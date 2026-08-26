@@ -161,6 +161,56 @@ test('GET /?tab=discover&filter=camping only shows camping rows', async () => {
   }
 });
 
+test('GET /?tab=discover&filter=camping hides hard-excluded candidates by default but offers to show them', async () => {
+  const app = createApp();
+  const server = app.listen(0);
+  const { port } = server.address();
+
+  try {
+    const res = await fetch(`http://localhost:${port}/?tab=discover&filter=camping`);
+    const html = await res.text();
+    assert.equal(res.status, 200);
+    // Baker Campground is a documented CONDITIONAL_FAILED (no lake view, no water hookup).
+    assert.doesNotMatch(html, /Baker Campground/);
+    assert.match(html, /show \d+ excluded/);
+  } finally {
+    server.close();
+  }
+});
+
+test('GET /?tab=discover&filter=camping&showExcluded=1 surfaces the excluded candidates with an EXCLUDED badge', async () => {
+  const app = createApp();
+  const server = app.listen(0);
+  const { port } = server.address();
+
+  try {
+    const res = await fetch(`http://localhost:${port}/?tab=discover&filter=camping&showExcluded=1`);
+    const html = await res.text();
+    assert.equal(res.status, 200);
+    assert.match(html, /Baker Campground/);
+    assert.match(html, />EXCLUDED</);
+    assert.match(html, /hide excluded/);
+  } finally {
+    server.close();
+  }
+});
+
+test('GET /?tab=discover renders a Status column with a RECOMMENDED badge for Shell Lake', async () => {
+  const app = createApp();
+  const server = app.listen(0);
+  const { port } = server.address();
+
+  try {
+    const res = await fetch(`http://localhost:${port}/?tab=discover`);
+    const html = await res.text();
+    assert.equal(res.status, 200);
+    assert.match(html, /<th>Status<\/th>/);
+    assert.match(html, />RECOMMENDED</);
+  } finally {
+    server.close();
+  }
+});
+
 test('GET /?tab=discover shows pagination info and Next is absent when everything fits on one page', async () => {
   const app = createApp();
   const server = app.listen(0);

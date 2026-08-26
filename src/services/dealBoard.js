@@ -4,17 +4,22 @@ const { calculateCampingTotalCost } = require('../domain/campingQualification');
 const { classifyBudget } = require('../domain/budgetModel');
 const { classifyTravelTime } = require('../domain/travelTimeModel');
 const { computeDefaultTripDates } = require('../domain/tripDates');
+const { CANDIDATE_STATUS, CANDIDATE_STATUS_RANK, deriveCandidateStatus } = require('../domain/candidateStatus');
 
 const AVG_DRIVING_SPEED_MPH = 55;
+const WARM_CATEGORIES = ['mexico', 'socal', 'florida', 'southwest'];
 
 /**
- * Phase 1 "personal travel deal desk" — merges the real, site-level-researched campground data
- * with the curated (not yet independently researched) destination catalog into one ranked table.
+ * The personal travel deal desk (Phase 1) / deal-first discovery engine (Phase 2) — merges the
+ * real, site-level-researched campground data with the curated (not yet independently researched)
+ * destination catalog into one ranked, status-tiered table.
  *
  * Camping rows get a real computed total cost (nightly rate x nights + an ESTIMATED fuel line) —
  * the campground data is genuinely researched. General destination rows have NO live flight/hotel
  * adapter configured yet (that's Phase 3/4), so their cost/budget/travel-time columns are
- * deliberately UNVERIFIED rather than fabricated, per the non-negotiable data rule.
+ * deliberately UNVERIFIED rather than fabricated, per the non-negotiable data rule — which is also
+ * why they can only ever reach candidateStatus UNVERIFIED today, never RECOMMENDED/STRETCH/
+ * EXCLUDED (those require real budget/travel-time facts this codebase doesn't have for them yet).
  */
 
 function campingTotalCost(campground, nights, vehicle) {
@@ -41,10 +46,16 @@ function campingTotalCost(campground, nights, vehicle) {
 async function toCampingRow(c, { nights, dates, profile }) {
   const cost = campingTotalCost(c, nights, profile.vehicle);
   const budgetStatus = classifyBudget(cost.amount, profile.budget);
-  const travelTimeStatus = classifyTravelTime(
-    typeof c.drivingHoursFrom55449 === 'number' ? c.drivingHoursFrom55449 : null,
-    profile.travelTime,
-  );
+  const hasRealTravelTime = typeof c.drivingHoursFrom55449 === 'number';
+  const travelTimeStatus = classifyTravelTime(hasRealTravelTime ? c.drivingHoursFrom55449 : null, profile.travelTime);
+  const qualificationVerdict = c.qualification?.verdict || null;
+  const candidateStatus = deriveCandidateStatus({
+    budgetStatus: budgetStatus.status,
+    travelTimeStatus: travelTimeStatus.status,
+    qualificationVerdict,
+    hasRealCost: cost.amount != null,
+    hasRealTravelTime,
+  });
   // Reuses the same live link-validation path as the Camping tab's cards — no separate,
   // cheaper-but-less-honest status computed just for the table view.
   const booking = await campgroundService.buildBookingInfo(c);
@@ -55,14 +66,15 @@ async function toCampingRow(c, { nights, dates, profile }) {
     tripType: 'CAMPING',
     dates,
     duration: `${nights} night${nights === 1 ? '' : 's'}`,
-    flightSummary: typeof c.drivingHoursFrom55449 === 'number' ? `Drive ~${c.drivingHoursFrom55449}h from 55449` : 'Drive time unknown',
+    flightSummary: hasRealTravelTime ? `Drive ~${c.drivingHoursFrom55449}h from 55449` : 'Drive time unknown',
     lodging: c.resolvedName,
     totalCost: cost,
     budgetStatus,
     travelTimeStatus,
+    candidateStatus,
     valueScore: typeof c.valueScore === 'number' ? Math.round(c.valueScore) : null,
     evidenceStatus: c.verification?.confidence || 'LOW',
-    qualificationVerdict: c.qualification?.verdict || null,
+    qualificationVerdict,
     bookingStatus: booking.bookingStatus,
     bookingUrl: booking.bookingUrl,
     detailHref: '/?tab=camping',
@@ -81,6 +93,17 @@ const TRIP_TYPE_BY_CATEGORY = {
 };
 
 function toGeneralRow(d, { nights, dates }) {
+  // No live flight/hotel adapter exists yet (Phase 3/4), so cost/budget/travel-time are honestly
+  // UNVERIFIED — deriveCandidateStatus reflects that by capping this at CANDIDATE_STATUS.UNVERIFIED
+  // rather than guessing RECOMMENDED/STRETCH/EXCLUDED from data that doesn't exist.
+  const candidateStatus = deriveCandidateStatus({
+    budgetStatus: 'UNVERIFIED',
+    travelTimeStatus: 'UNVERIFIED',
+    qualificationVerdict: null,
+    hasRealCost: false,
+    hasRealTravelTime: false,
+  });
+
   return {
     id: d.destinationId,
     destination: d.name,
@@ -92,6 +115,7 @@ function toGeneralRow(d, { nights, dates }) {
     totalCost: { amount: null, label: 'UNVERIFIED' },
     budgetStatus: { status: 'UNVERIFIED', label: 'Unverified — no pricing yet' },
     travelTimeStatus: { status: 'UNVERIFIED', label: 'Unverified — no flight data yet', hours: null },
+    candidateStatus,
     valueScore: d.discoveryScore,
     evidenceStatus: 'LOW',
     qualificationVerdict: null,
@@ -113,22 +137,36 @@ function sortRows(rows, sort, dir) {
     return (av - bv) * factor;
   };
 
-  const getters = {
-    cost: (r) => r.totalCost.amount,
-    travelTime: (r) => r.travelTimeStatus.hours,
-    value: (r) => r.valueScore,
-  };
-  const get = getters[sort] || getters.value;
+  if (sort === 'cost') {
+    return [...rows].sort((a, b) => compareNullsLast(a.totalCost.amount, b.totalCost.amount));
+  }
+  if (sort === 'travelTime') {
+    return [...rows].sort((a, b) => compareNullsLast(a.travelTimeStatus.hours, b.travelTimeStatus.hours));
+  }
 
-  return [...rows].sort((a, b) => compareNullsLast(get(a), get(b)));
+  // Default 'value' sort: budget/travel-time now genuinely drive ranking, not just a display
+  // label — candidateStatus tier always leads (Recommended, then Stretch, then Validated, then
+  // Candidate/Unverified), with valueScore only breaking ties within the same tier. The tier
+  // order itself doesn't flip with `dir` (a "worst deals first" view isn't a real use case); dir
+  // only controls the value-score tiebreak direction within each tier.
+  return [...rows].sort((a, b) => {
+    const rankDiff = CANDIDATE_STATUS_RANK[a.candidateStatus] - CANDIDATE_STATUS_RANK[b.candidateStatus];
+    if (rankDiff !== 0) return rankDiff;
+    return compareNullsLast(a.valueScore, b.valueScore);
+  });
 }
 
 /**
  * filter: 'all' | 'camping' | 'warm' | 'roadtrip'
  * sort: 'value' | 'cost' | 'travelTime'
  * dir: 'asc' | 'desc'
+ * includeExcluded: when false (default), rows whose candidateStatus is EXCLUDED (over absolute
+ * budget max, over absolute travel-time max, or a hard-failed campground qualification) are left
+ * out of the ranked results entirely — the deal desk shouldn't rank something it has already
+ * determined the traveler explicitly ruled out. Pass true to inspect them (e.g. a "show excluded"
+ * toggle) instead of losing that information silently.
  */
-async function buildDealBoard({ profile, startDate, preferences = [], filter = 'all', sort = 'value', dir = 'desc' }) {
+async function buildDealBoard({ profile, startDate, preferences = [], filter = 'all', sort = 'value', dir = 'desc', includeExcluded = false }) {
   const defaultDates = computeDefaultTripDates(profile, startDate);
   const nights = defaultDates.nights;
   const dates = startDate
@@ -150,17 +188,25 @@ async function buildDealBoard({ profile, startDate, preferences = [], filter = '
   }
 
   if (filter !== 'camping') {
-    const forcePool = filter === 'warm' ? 'WARM_ESCAPE' : undefined;
+    const categoryFilter = filter === 'warm' ? WARM_CATEGORIES : undefined;
     const effectivePreferences = filter === 'roadtrip' ? [...preferences, 'road trip'] : preferences;
     const candidates = discoverDestinations(
       { startDate: effectiveStartDate, preferences: effectivePreferences },
-      { minScore: 0, limit: 25, forcePool },
+      { minScore: 0, limit: 25, categoryFilter },
     ).filter((d) => d.category !== 'camping'); // real camping rows come from campgroundService above
     rows.push(...candidates.map((d) => toGeneralRow(d, { nights, dates })));
   }
 
-  rows = sortRows(rows, sort, dir);
-  return rows.map((row, i) => ({ ...row, rank: i + 1 }));
+  const excludedCount = rows.filter((r) => r.candidateStatus === CANDIDATE_STATUS.EXCLUDED).length;
+  if (!includeExcluded) {
+    rows = rows.filter((r) => r.candidateStatus !== CANDIDATE_STATUS.EXCLUDED);
+  }
+
+  rows = sortRows(rows, sort, dir).map((row, i) => ({ ...row, rank: i + 1 }));
+  // Attached rather than returned as {rows, excludedCount} so existing callers that treat the
+  // result as a plain array of rows keep working unchanged — arrays can carry extra properties.
+  rows.excludedCount = excludedCount;
+  return rows;
 }
 
-module.exports = { buildDealBoard, campingTotalCost };
+module.exports = { buildDealBoard, campingTotalCost, WARM_CATEGORIES };
