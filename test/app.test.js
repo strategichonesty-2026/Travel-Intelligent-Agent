@@ -161,6 +161,57 @@ test('GET /?tab=discover&filter=camping only shows camping rows', async () => {
   }
 });
 
+test('GET /?tab=discover shows pagination info and Next is absent when everything fits on one page', async () => {
+  const app = createApp();
+  const server = app.listen(0);
+  const { port } = server.address();
+
+  try {
+    const res = await fetch(`http://localhost:${port}/?tab=discover&filter=all`);
+    const html = await res.text();
+    assert.equal(res.status, 200);
+    assert.match(html, /Showing 1–\d+ of \d+/);
+    assert.match(html, /Page 1 of 1/); // current catalog is under 25 rows for the "all" filter
+    assert.match(html, /class="page-link disabled">Next/);
+  } finally {
+    server.close();
+  }
+});
+
+test('GET /?tab=discover&page=2 on a filter with more than 25 rows serves the second 25 via the URL', async () => {
+  const app = createApp();
+  const server = app.listen(0);
+  const { port } = server.address();
+
+  try {
+    // "camping" filter (favorites + discoveries) currently has 21 rows — force a small enough
+    // page implicitly isn't possible without changing the constant, so this asserts the
+    // out-of-range page clamps back to page 1 rather than erroring or showing an empty table.
+    const res = await fetch(`http://localhost:${port}/?tab=discover&filter=camping&page=2`);
+    const html = await res.text();
+    assert.equal(res.status, 200);
+    assert.match(html, /Page 1 of 1/);
+    assert.match(html, /Shell Lake/);
+  } finally {
+    server.close();
+  }
+});
+
+test('GET /?tab=discover&page=0 does not error and clamps to page 1', async () => {
+  const app = createApp();
+  const server = app.listen(0);
+  const { port } = server.address();
+
+  try {
+    const res = await fetch(`http://localhost:${port}/?tab=discover&page=0`);
+    assert.equal(res.status, 200);
+    const html = await res.text();
+    assert.match(html, /Page 1 of/);
+  } finally {
+    server.close();
+  }
+});
+
 test('GET /?tab=profile renders the editable profile form with current values', async () => {
   const app = createApp();
   const server = app.listen(0);

@@ -3,6 +3,7 @@ const campgroundService = require('../services/campgroundService');
 const profileService = require('../services/profileService');
 const { buildDealBoard } = require('../services/dealBoard');
 const { getDestinationsByCategory } = require('../domain/destinationDiscovery');
+const { paginate } = require('../domain/pagination');
 
 const router = express.Router();
 
@@ -19,6 +20,8 @@ const TEAL = '#3f6e7a';
 const VIOLET = '#6a5b96';
 
 const PREFERENCE_OPTIONS = ['camping', 'scenery', 'waterfront', 'hiking', 'swimming', 'fishing', 'warm weather', 'relaxation', 'road trip'];
+
+const DEAL_TABLE_PAGE_SIZE = 25;
 
 const TABS = [
   { id: 'discover', label: 'Discover' },
@@ -228,6 +231,19 @@ function renderDealTable(rows, { sort, dir, sortHref }) {
   </div>`;
 }
 
+function renderPagination({ page, totalPages, totalRows, pageStart, pageEnd, pageHref }) {
+  if (totalRows === 0) return '';
+  return `
+  <div class="pagination">
+    <span class="page-info">Showing ${pageStart}–${pageEnd} of ${totalRows}</span>
+    <div class="page-links">
+      ${page > 1 ? `<a class="page-link" href="${pageHref(page - 1)}">← Previous</a>` : '<span class="page-link disabled">← Previous</span>'}
+      <span class="page-current">Page ${page} of ${totalPages}</span>
+      ${page < totalPages ? `<a class="page-link" href="${pageHref(page + 1)}">Next →</a>` : '<span class="page-link disabled">Next →</span>'}
+    </div>
+  </div>`;
+}
+
 const QUICK_ACTIONS = [
   { label: 'Find Me the Best Deal', filter: 'all' },
   { label: 'Find Camping', filter: 'camping' },
@@ -384,6 +400,7 @@ router.get('/', async (req, res, next) => {
     const filter = ['all', 'camping', 'warm', 'roadtrip'].includes(req.query.filter) ? req.query.filter : 'all';
     const sort = ['value', 'cost', 'travelTime'].includes(req.query.sort) ? req.query.sort : 'value';
     const dir = req.query.dir === 'asc' ? 'asc' : 'desc';
+    const requestedPage = Math.max(1, parseInt(req.query.page, 10) || 1);
 
     const profile = profileService.getProfile();
 
@@ -410,8 +427,22 @@ router.get('/', async (req, res, next) => {
       params.set('filter', filter);
       params.set('sort', key);
       params.set('dir', nextDir);
+      // Changing sort order restarts at page 1 — the "25th cheapest" isn't the same row as the
+      // "25th best value", so keeping the old page number would silently jump to a different set.
       if (startDate) params.set('startDate', startDate);
       for (const p of selectedPrefs) params.append('preferences', p);
+      return `?${params.toString()}`;
+    }
+
+    function pageHref(p) {
+      const params = new URLSearchParams();
+      params.set('tab', 'discover');
+      params.set('filter', filter);
+      params.set('sort', sort);
+      params.set('dir', dir);
+      params.set('page', String(p));
+      if (startDate) params.set('startDate', startDate);
+      for (const pref of selectedPrefs) params.append('preferences', pref);
       return `?${params.toString()}`;
     }
 
@@ -453,6 +484,10 @@ router.get('/', async (req, res, next) => {
     } else if (activeTab === 'discover') {
       const rows = await buildDealBoard({ profile, startDate: startDate || undefined, preferences: selectedPrefs, filter, sort, dir });
 
+      const totalRows = rows.length;
+      const { page, totalPages, startIndex, endIndex, pageStart, pageEnd } = paginate(totalRows, requestedPage, DEAL_TABLE_PAGE_SIZE);
+      const pageRows = rows.slice(startIndex, endIndex);
+
       discoverSection = `
   <div class="quick-actions">
     ${QUICK_ACTIONS.map((a) => `<a class="quick-action${filter === a.filter ? ' active' : ''}" href="${quickActionHref(a.filter)}">${esc(a.label)}</a>`).join('')}
@@ -471,7 +506,8 @@ router.get('/', async (req, res, next) => {
   </form>
   <p class="sub">No destination required &mdash; the deal desk discovers candidates across researched camping data and the curated destination catalog, scored by season, preference match, and (for camping) real computed cost. Flights/hotels have no live adapter configured yet (Phase 3/4), so those columns read UNVERIFIED rather than a guessed number.</p>
 
-  ${renderDealTable(rows, { sort, dir, sortHref })}`;
+  ${renderDealTable(pageRows, { sort, dir, sortHref })}
+  ${renderPagination({ page, totalPages, totalRows, pageStart, pageEnd, pageHref })}`;
     } else if (activeTab === 'cruise') {
       categorySection = `<p class="empty">No cruise line data has been researched yet &mdash; spec section 4 lists "cruise line" as a booking-link category, but nothing here fabricates itineraries or pricing without a real source. This tab will populate once that research pass happens.</p>`;
     } else if (activeTab === 'profile') {
@@ -550,6 +586,12 @@ router.get('/', async (req, res, next) => {
   .quick-action { text-decoration: none; font-size: 12px; font-weight: 600; color: ${INK}; background: ${CARD}; border: 1px solid ${BORDER}; border-radius: 999px; padding: 8px 16px; }
   .quick-action.active { background: ${INK}; color: ${CARD}; border-color: ${INK}; }
   .quick-action.disabled { color: ${MUTED}; cursor: not-allowed; opacity: .6; }
+  .pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-top: 14px; font-family: 'Space Mono', monospace; font-size: 11px; color: ${MUTED}; }
+  .page-links { display: flex; align-items: center; gap: 14px; }
+  .page-link { color: ${CLAY}; text-decoration: none; font-weight: 700; }
+  .page-link:hover { color: ${OLIVE}; }
+  .page-link.disabled { color: ${MUTED}; opacity: .5; cursor: not-allowed; }
+  .page-current { color: ${INK}; }
   .table-wrap { overflow-x: auto; border: 1px solid ${BORDER}; border-radius: 6px; background: ${CARD}; }
   .deal-table { width: 100%; border-collapse: collapse; font-size: 12.5px; white-space: nowrap; }
   .deal-table th { text-align: left; padding: 10px 12px; background: ${BG}; border-bottom: 1px solid ${BORDER}; font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: .04em; text-transform: uppercase; color: ${MUTED}; }
