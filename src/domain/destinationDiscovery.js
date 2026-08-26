@@ -59,14 +59,21 @@ function preferenceOverlapScore(destinationTags, preferenceTags) {
  * Returns ranked candidates with an explanation for why each was surfaced (never forces a weak
  * destination into the results — anything below minScore is dropped).
  */
-function discoverDestinations(input, { minScore = 40, limit = 8 } = {}) {
+function discoverDestinations(input, { minScore = 40, limit = 8, forcePool } = {}) {
   const { startDate, preferences = [] } = input;
   const seasonalContext = getSeasonalContext(startDate);
   const preferenceTags = normalizePreferenceTags(preferences);
 
-  const pool = seasonalContext.season === 'WARM_ESCAPE'
+  // forcePool lets a caller browse a pool regardless of today's season (e.g. a "Warm Getaway"
+  // quick action in August) — seasonal fit is still computed honestly against the real date, so a
+  // poor-season match still scores low rather than being hidden or inflated.
+  const pool = forcePool === 'WARM_ESCAPE'
     ? WARM_ESCAPE_DESTINATIONS
-    : SUMMER_OUTDOOR_DESTINATIONS; // SHOULDER months fall back to the outdoor pool as a broad default
+    : forcePool === 'SUMMER_OUTDOOR'
+      ? SUMMER_OUTDOOR_DESTINATIONS
+      : seasonalContext.season === 'WARM_ESCAPE'
+        ? WARM_ESCAPE_DESTINATIONS
+        : SUMMER_OUTDOOR_DESTINATIONS; // SHOULDER months fall back to the outdoor pool as a broad default
 
   const scored = pool.map((destination) => {
     const seasonalFit = computeSeasonalFitScore(destination, startDate);
