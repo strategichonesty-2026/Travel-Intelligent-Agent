@@ -1,7 +1,13 @@
-const { test } = require('node:test');
+const { test, mock, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const { buildDealBoard } = require('../src/services/dealBoard');
 const { DEFAULT_PROFILE } = require('../src/data/defaultProfile');
+const flightsAdapter = require('../src/adapters/flights/flightsAdapter');
+const { buildMspLasRoundTripOffer } = require('./fixtures/duffelOffer');
+
+afterEach(() => {
+  mock.restoreAll();
+});
 
 test('buildDealBoard: camping filter returns only real researched campground rows with a computed cost', async () => {
   const rows = await buildDealBoard({ profile: DEFAULT_PROFILE, filter: 'camping' });
@@ -75,4 +81,55 @@ test('buildDealBoard: default value sort tiers RECOMMENDED above VALIDATED above
   }
   // Shell Lake's lakefront tier is the one real RECOMMENDED-caliber candidate in today's data.
   assert.equal(rows[0].candidateStatus, 'RECOMMENDED');
+});
+
+test('buildDealBoard: with Duffel configured, a general destination row gets a real flight summary and real travel-time status', async () => {
+  const originalToken = process.env.DUFFEL_ACCESS_TOKEN;
+  process.env.DUFFEL_ACCESS_TOKEN = 'duffel_test_fake_for_unit_test';
+  mock.method(flightsAdapter, 'searchFlights', async () => ({
+    configured: true,
+    error: null,
+    source: 'Duffel',
+    checkedAt: '2026-08-26T12:00:00.000Z',
+    results: [require('../src/adapters/flights/mapFlightOffer').mapFlightOffer(buildMspLasRoundTripOffer())],
+  }));
+
+  try {
+    const rows = await buildDealBoard({ profile: DEFAULT_PROFILE, filter: 'roadtrip' });
+    const withFlight = rows.find((r) => r.flightSummary && r.flightSummary.startsWith('Delta'));
+    assert.ok(withFlight, 'expected at least one row to get a real flight summary');
+    assert.match(withFlight.flightSummary, /nonstop/);
+    assert.notEqual(withFlight.travelTimeStatus.status, 'UNVERIFIED');
+    assert.equal(withFlight.travelTimeStatus.hours, 2.58);
+    // Trip-level cost stays UNVERIFIED even with a real flight price — lodging isn't priced yet.
+    assert.equal(withFlight.totalCost.amount, null);
+    assert.equal(withFlight.candidateStatus, 'UNVERIFIED');
+  } finally {
+    if (originalToken === undefined) delete process.env.DUFFEL_ACCESS_TOKEN;
+    else process.env.DUFFEL_ACCESS_TOKEN = originalToken;
+  }
+});
+
+test('buildDealBoard: a flight-search failure surfaces the real error, never a fabricated flight', async () => {
+  const originalToken = process.env.DUFFEL_ACCESS_TOKEN;
+  process.env.DUFFEL_ACCESS_TOKEN = 'duffel_test_fake_for_unit_test';
+  mock.method(flightsAdapter, 'searchFlights', async () => ({
+    configured: true,
+    error: 'Duffel flight search failed: 422 Unprocessable — no availability',
+    source: 'Duffel',
+    checkedAt: '2026-08-26T12:00:00.000Z',
+    results: [],
+  }));
+
+  try {
+    const rows = await buildDealBoard({ profile: DEFAULT_PROFILE, filter: 'roadtrip' });
+    // Every row's summary is one of the honest placeholders (failure, no-airport, lookup-skipped)
+    // — never a fabricated-looking flight description.
+    assert.ok(rows.every((r) => r.flightSummary.startsWith('Unverified')));
+    assert.ok(rows.some((r) => r.flightSummary.includes('flight search failed')));
+    assert.ok(rows.every((r) => r.travelTimeStatus.status === 'UNVERIFIED'));
+  } finally {
+    if (originalToken === undefined) delete process.env.DUFFEL_ACCESS_TOKEN;
+    else process.env.DUFFEL_ACCESS_TOKEN = originalToken;
+  }
 });

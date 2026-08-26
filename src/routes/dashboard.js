@@ -194,7 +194,11 @@ function renderDealRow(row) {
     <td>${badge(row.candidateStatus, candidateStyle)}</td>
     <td>${esc(row.dates)}</td>
     <td>${esc(row.duration)}</td>
-    <td>${esc(row.flightSummary)}</td>
+    <td>
+      ${esc(row.flightSummary)}
+      ${row.flightPrice?.amount != null ? `<span class="mini">$${row.flightPrice.amount.toLocaleString()} flight only &middot; ${row.flightPrice.label}</span>` : ''}
+      ${row.flightSource && row.flightCheckedAt ? `<span class="mini">source: ${esc(row.flightSource)} &middot; checked ${esc(row.flightCheckedAt.slice(0, 16).replace('T', ' '))} UTC</span>` : ''}
+    </td>
     <td>${esc(row.lodging)}</td>
     <td class="num">${costText}<span class="mini">${row.totalCost.label !== 'UNVERIFIED' ? row.totalCost.label : ''}</span></td>
     <td>${badge(row.budgetStatus.label, budgetStyle)}</td>

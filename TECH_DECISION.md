@@ -96,11 +96,94 @@ This mirrors the adapter pattern already used in the sibling
 
 ### Follow-up needed (not yet done)
 
-- Supply `RIDB_API_KEY`, `NPS_API_KEY`, `AMADEUS_CLIENT_ID`/`AMADEUS_CLIENT_SECRET`
-  once the account signups are completed, then implement the actual request
-  logic in the three stub adapters (interfaces are already defined).
+- Supply `RIDB_API_KEY`, `NPS_API_KEY` once the account signups are completed,
+  then implement the actual request logic in the two stub adapters
+  (interfaces are already defined). Flight provider credentials are covered
+  by the Phase 3 addendum below; a hotel provider is still unselected
+  (Phase 4).
 - Backfill `src/data/favoriteCampgrounds.js` from the sourced research pass
   in `data/campground-research.md` once available.
 - Persist scoring-weight overrides and a monitor list (spec section 29)
   once a storage layer is chosen — out of scope for this initial scaffold,
   which is stateless.
+
+---
+
+## Phase 3 addendum: flight provider re-evaluation (Amadeus → Duffel)
+
+**Date:** 2026-08-26
+
+### Why re-evaluated
+
+The initial scaffold above picked Amadeus for Developers as the flight (and
+prospective hotel) provider. When Phase 3 actually began, Amadeus's
+self-service developer portal had been decommissioned (announced cutover
+July 17, 2026) — the only remaining path is the Amadeus Enterprise API
+Portal, which requires a sales/contract process this project has no way to
+go through. Amadeus was therefore dropped as the flight provider.
+
+### Repos/libraries evaluated
+
+| Candidate | License | Stars | Maintenance | Decision |
+|-----------|---------|-------|-------------|----------|
+| Amadeus for Developers (Enterprise portal, post-decommission) | Vendor SaaS | N/A | Active vendor, but self-service signup gone | **Rejected** — no self-service path remains; Enterprise requires a sales process |
+| Duffel (flights) | Vendor SaaS, genuine self-service signup, free test mode | N/A | Active — official self-service travel API | **Accepted** — real self-service signup still works (`duffel_test_...` tokens, no payment info needed to start), modern REST API, built specifically for indie/self-service integrations |
+| `@duffel/api` (duffelhq/duffel-api-javascript) | MIT | N/A (npm: 4.28.0, published 2026-08-13) | Active — official Duffel-maintained TypeScript SDK, maintainers list `@duffel.com` emails | **Accepted** — official SDK over hand-rolled `fetch` calls against the raw REST API, per the reuse-over-rebuild default; ships full TypeScript type definitions, which were read directly (`node_modules/@duffel/api/dist/typings.d.ts`) to get exact request/response field names rather than relying on documentation pages, some of which were incomplete on response details when checked |
+
+### Why accepted/rejected
+
+Duffel was the only flight-search provider found (via direct research of
+Duffel's own docs, not assumed from training knowledge) that still offers a
+genuinely self-service signup with no sales process and a working free test
+mode — matching this project's constraint (no ability to go through a
+vendor's account-creation/sales flow). The official `@duffel/api` SDK was
+used instead of raw HTTP calls specifically because its shipped `.d.ts`
+files gave verified-accurate field names (`slices`, `segments`,
+`departing_at`/`arriving_at`, `marketing_carrier`, `total_amount`, etc.),
+removing the risk of a hand-written request/response mapper drifting from
+the real API shape.
+
+### License compatibility
+
+MIT (`@duffel/api`). No copyleft/GPL/AGPL concerns. Duffel's API itself is a
+vendor service, not a dependency with a license to evaluate.
+
+### Maintenance status
+
+`@duffel/api` shows a release (4.28.0) as of this evaluation with official
+Duffel maintainers. No abandonment signals.
+
+### Security considerations
+
+- `DUFFEL_ACCESS_TOKEN` is read from the environment only, never hardcoded,
+  git-ignored via `.env`. A `duffel_test_`-prefixed token only ever touches
+  Duffel's test-mode data — there is no separate test-vs-live base URL to
+  misconfigure, the token itself is the boundary.
+- `src/adapters/flights/flightsAdapter.js` fails closed (`configured:
+  false`) with no token set, and returns `results: []` with a `error`
+  message (never a fabricated flight) on any provider-side failure.
+- **Live verification status:** the adapter (`duffelClient.js`,
+  `mapFlightOffer.js`) was built and unit-tested against Duffel's official
+  SDK type definitions, but had not yet been exercised against a real
+  `DUFFEL_ACCESS_TOKEN` at the time this addendum was written — see the
+  Phase 3 completion report for whether live verification happened in this
+  same session or remains a follow-up.
+
+### Final architecture decision
+
+```
+Strategic Honesty business logic
+  src/domain/flightScheduleRules.js   (pure: outbound/return/day/time/connection rules)
+  src/domain/flightSelection.js       (pure: picks the best offer against the rules)
+  src/services/dealBoard.js           (orchestrates: calls the adapter, applies selection,
+                                        folds real flight data into deal-table rows)
+        |
+        v
+  src/adapters/flights/
+    flightsAdapter.js    (isConfigured() gate, searchFlights(), never fabricates on failure)
+    duffelClient.js       (thin wrapper around the official @duffel/api SDK)
+    mapFlightOffer.js     (raw Duffel Offer -> normalized FlightOption; pure, defensive)
+        |
+        v
+  @duffel/api (official SDK) -> Duffel API (api.duffel.com)
+```

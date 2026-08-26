@@ -99,6 +99,7 @@ function discoverDestinations(input, { minScore = 40, limit = 8, categoryFilter 
       name: destination.name,
       region: destination.region,
       category: destination.category,
+      airportCode: destination.airportCode ?? null,
       seasonalFitScore: seasonalFit.score,
       preferenceMatchScore: preferenceMatch,
       discoveryScore: combined,

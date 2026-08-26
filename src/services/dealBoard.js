@@ -5,9 +5,15 @@ const { classifyBudget } = require('../domain/budgetModel');
 const { classifyTravelTime } = require('../domain/travelTimeModel');
 const { computeDefaultTripDates } = require('../domain/tripDates');
 const { CANDIDATE_STATUS, CANDIDATE_STATUS_RANK, deriveCandidateStatus } = require('../domain/candidateStatus');
+const flightsAdapter = require('../adapters/flights/flightsAdapter');
+const { selectBestFlight } = require('../domain/flightSelection');
 
 const AVG_DRIVING_SPEED_MPH = 55;
 const WARM_CATEGORIES = ['mexico', 'socal', 'florida', 'southwest'];
+// Caps how many destinations get a live flight search per table render — a free/test-tier
+// provider and page-load time both argue against searching all 20+ catalog candidates on every
+// request. The rest keep the honest "no flight data yet" placeholder rather than a live lookup.
+const FLIGHT_LOOKUP_LIMIT = 8;
 
 /**
  * The personal travel deal desk (Phase 1) / deal-first discovery engine (Phase 2) — merges the
@@ -92,16 +98,77 @@ const TRIP_TYPE_BY_CATEGORY = {
   cruise: 'CRUISE',
 };
 
-function toGeneralRow(d, { nights, dates }) {
-  // No live flight/hotel adapter exists yet (Phase 3/4), so cost/budget/travel-time are honestly
-  // UNVERIFIED — deriveCandidateStatus reflects that by capping this at CANDIDATE_STATUS.UNVERIFIED
-  // rather than guessing RECOMMENDED/STRETCH/EXCLUDED from data that doesn't exist.
+function formatLocalTime(isoLocalTime, airportCode) {
+  const match = /T(\d{2}):(\d{2})/.exec(isoLocalTime || '');
+  if (!match) return 'unknown time';
+  let hour = Number(match[1]);
+  const minute = match[2];
+  const suffix = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12 || 12;
+  return `${hour}:${minute} ${suffix}${airportCode ? ` ${airportCode}` : ''}`;
+}
+
+function describeBestFlight(best) {
+  const outboundSeg = best.outbound.segments[0];
+  const inboundSeg = best.inbound.segments[best.inbound.segments.length - 1];
+  const label = best.totalStops === 0 ? 'nonstop' : `${best.totalStops} stop${best.totalStops === 1 ? '' : 's'}`;
+  const airline = outboundSeg.airlineName || outboundSeg.carrierCode || 'Unknown airline';
+  return `${airline} ${outboundSeg.flightNumber || ''} ${label} · depart ${formatLocalTime(outboundSeg.departure.localTime, outboundSeg.departure.airportCode)} · return arrive ${formatLocalTime(inboundSeg.arrival.localTime, inboundSeg.arrival.airportCode)}`.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Looks up a real flight (when Duffel is configured and this destination has an airportCode) and
+ * folds it into the row. Trip-level totalCost/budgetStatus stay UNVERIFIED even with a real flight
+ * price, because lodging isn't priced yet (Phase 4/5) — showing "budget: within preferred" off a
+ * flight-only price would misrepresent the whole trip's cost. travelTimeStatus, by contrast, CAN
+ * become real here: flight duration is a complete, real fact on its own.
+ */
+async function toGeneralRow(d, { nights, dates, profile, departDate, returnDate, allowFlightLookup }) {
+  let flightSummary = 'Unverified — no flight data yet';
+  let travelTimeStatus = { status: 'UNVERIFIED', label: 'Unverified — no flight data yet', hours: null };
+  let flightPrice = { amount: null, label: 'UNVERIFIED' };
+  let flightSource = null;
+  let flightCheckedAt = null;
+
+  if (d.airportCode && allowFlightLookup && flightsAdapter.isConfigured()) {
+    const search = await flightsAdapter.searchFlights({
+      origin: profile.airport,
+      destination: d.airportCode,
+      departDate,
+      returnDate,
+      travelers: profile.travelers,
+      maxConnections: profile.flight.maxConnections,
+    });
+    flightSource = search.source;
+    flightCheckedAt = search.checkedAt;
+
+    if (search.error) {
+      flightSummary = `Unverified — flight search failed: ${search.error}`;
+    } else if (search.results.length === 0) {
+      flightSummary = 'Unverified — no matching flights found';
+    } else {
+      const best = selectBestFlight(search.results, profile);
+      if (best) {
+        flightSummary = describeBestFlight(best);
+        travelTimeStatus = classifyTravelTime(best.oneWayTravelHours, profile.travelTime);
+        flightPrice = { amount: best.offer.totalPrice, label: best.offer.totalPrice != null ? 'VERIFIED' : 'UNVERIFIED' };
+      }
+    }
+  } else if (!d.airportCode) {
+    flightSummary = 'Unverified — no single airport for this region';
+  } else if (!flightsAdapter.isConfigured()) {
+    flightSummary = 'Unverified — no flight data yet';
+  } else {
+    flightSummary = 'Unverified — flight lookup skipped for this page (see top candidates only)';
+  }
+
+  // Trip-level cost/budget intentionally stay UNVERIFIED — see function comment.
   const candidateStatus = deriveCandidateStatus({
     budgetStatus: 'UNVERIFIED',
-    travelTimeStatus: 'UNVERIFIED',
+    travelTimeStatus: travelTimeStatus.status,
     qualificationVerdict: null,
     hasRealCost: false,
-    hasRealTravelTime: false,
+    hasRealTravelTime: travelTimeStatus.status !== 'UNVERIFIED',
   });
 
   return {
@@ -110,11 +177,14 @@ function toGeneralRow(d, { nights, dates }) {
     tripType: TRIP_TYPE_BY_CATEGORY[d.category] || 'OUTDOOR',
     dates,
     duration: `${nights} night${nights === 1 ? '' : 's'}`,
-    flightSummary: 'Unverified — no flight data yet',
+    flightSummary,
+    flightPrice,
+    flightSource,
+    flightCheckedAt,
     lodging: 'Unverified — no lodging data yet',
     totalCost: { amount: null, label: 'UNVERIFIED' },
     budgetStatus: { status: 'UNVERIFIED', label: 'Unverified — no pricing yet' },
-    travelTimeStatus: { status: 'UNVERIFIED', label: 'Unverified — no flight data yet', hours: null },
+    travelTimeStatus,
     candidateStatus,
     valueScore: d.discoveryScore,
     evidenceStatus: 'LOW',
@@ -194,7 +264,22 @@ async function buildDealBoard({ profile, startDate, preferences = [], filter = '
       { startDate: effectiveStartDate, preferences: effectivePreferences },
       { minScore: 0, limit: 25, categoryFilter },
     ).filter((d) => d.category !== 'camping'); // real camping rows come from campgroundService above
-    rows.push(...candidates.map((d) => toGeneralRow(d, { nights, dates })));
+    // Count lookup slots only against candidates that actually have an airport to search — a
+    // region entry like "Great Lakes region (general)" never consumes a slot it can't use.
+    let flightLookupsUsed = 0;
+    const generalRows = await Promise.all(candidates.map((d) => {
+      const allowFlightLookup = d.airportCode && flightLookupsUsed < FLIGHT_LOOKUP_LIMIT;
+      if (allowFlightLookup) flightLookupsUsed += 1;
+      return toGeneralRow(d, {
+        nights,
+        dates,
+        profile,
+        departDate: defaultDates.startDate,
+        returnDate: defaultDates.endDate,
+        allowFlightLookup,
+      });
+    }));
+    rows.push(...generalRows);
   }
 
   const excludedCount = rows.filter((r) => r.candidateStatus === CANDIDATE_STATUS.EXCLUDED).length;

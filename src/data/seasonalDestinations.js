@@ -4,6 +4,11 @@
  * discovery engine surfaces must still be verified through the relevant adapter before a
  * recommendation can move past RESEARCH_ONLY. Camping-specific candidates in Minnesota,
  * Wisconsin, and Iowa are sourced from data/favoriteCampgrounds.js rather than duplicated here.
+ *
+ * airportCode: the nearest major commercial airport's real IATA code, used by
+ * src/adapters/flights/flightsAdapter.js (Phase 3) to search live flights. null where a "region"
+ * entry is too vague to map to one airport (e.g. "Great Lakes region (general)") — those stay
+ * flight-search-ineligible rather than guessing an airport.
  */
 
 const SUMMER_OUTDOOR_DESTINATIONS = [
@@ -54,6 +59,7 @@ const SUMMER_OUTDOOR_DESTINATIONS = [
     category: 'colorado',
     tags: ['colorado', 'hiking', 'national-park', 'scenic-drive', 'road-trip', 'northern-us'],
     isColdWeather: false,
+    airportCode: 'DEN',
   },
   {
     id: 'ny-niagara-falls',
@@ -62,6 +68,7 @@ const SUMMER_OUTDOOR_DESTINATIONS = [
     category: 'niagara',
     tags: ['niagara-falls', 'scenic-drive', 'northern-us', 'road-trip'],
     isColdWeather: false,
+    airportCode: 'BUF', // Buffalo Niagara Intl — nearest commercial airport with regular service
   },
   {
     id: 'great-lakes-region',
@@ -70,6 +77,7 @@ const SUMMER_OUTDOOR_DESTINATIONS = [
     category: 'niagara',
     tags: ['great-lakes', 'northern-us', 'lakeside', 'road-trip', 'scenic-drive'],
     isColdWeather: false,
+    airportCode: null, // too vague a "region" to name one airport — flight-search-ineligible
   },
 ];
 
@@ -81,6 +89,7 @@ const WARM_ESCAPE_DESTINATIONS = [
     category: 'mexico',
     tags: ['mexico', 'warm-resort'],
     isColdWeather: false,
+    airportCode: 'CUN',
     hurricaneRiskNote: 'Atlantic hurricane season officially runs through Nov 30 — verify current storm activity before booking.',
   },
   {
@@ -90,6 +99,7 @@ const WARM_ESCAPE_DESTINATIONS = [
     category: 'mexico',
     tags: ['mexico', 'warm-resort'],
     isColdWeather: false,
+    airportCode: 'PVR',
   },
   {
     id: 'ca-san-diego',
@@ -98,6 +108,7 @@ const WARM_ESCAPE_DESTINATIONS = [
     category: 'socal',
     tags: ['southern-california', 'warm-road-trip'],
     isColdWeather: false,
+    airportCode: 'SAN',
   },
   {
     id: 'ca-palm-springs',
@@ -106,6 +117,7 @@ const WARM_ESCAPE_DESTINATIONS = [
     category: 'socal',
     tags: ['southern-california', 'warm-resort'],
     isColdWeather: false,
+    airportCode: 'PSP',
   },
   {
     id: 'fl-orlando',
@@ -114,6 +126,7 @@ const WARM_ESCAPE_DESTINATIONS = [
     category: 'florida',
     tags: ['florida', 'warm-resort'],
     isColdWeather: false,
+    airportCode: 'MCO',
   },
   {
     id: 'fl-gulf-coast',
@@ -122,6 +135,7 @@ const WARM_ESCAPE_DESTINATIONS = [
     category: 'florida',
     tags: ['florida', 'warm-resort'],
     isColdWeather: false,
+    airportCode: 'TPA',
   },
   {
     id: 'az-phoenix-scottsdale',
@@ -130,6 +144,7 @@ const WARM_ESCAPE_DESTINATIONS = [
     category: 'southwest',
     tags: ['arizona', 'warm-resort'],
     isColdWeather: false,
+    airportCode: 'PHX',
   },
   {
     id: 'nv-las-vegas',
@@ -138,6 +153,7 @@ const WARM_ESCAPE_DESTINATIONS = [
     category: 'southwest',
     tags: ['nevada', 'warm-resort', 'warm-road-trip'],
     isColdWeather: false,
+    airportCode: 'LAS',
   },
 ];
 
