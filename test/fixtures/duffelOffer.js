@@ -24,13 +24,13 @@ function buildMspLasRoundTripOffer(overrides = {}) {
       {
         id: 'sli_outbound',
         duration: 'PT2H35M',
-        origin: { iata_code: 'MSP', name: 'Minneapolis-Saint Paul Intl', time_zone: 'America/Chicago' },
-        destination: { iata_code: 'LAS', name: 'Harry Reid Intl', time_zone: 'America/Los_Angeles' },
+        origin: { iata_code: 'MSP', name: 'Minneapolis-Saint Paul Intl', time_zone: 'America/Chicago', latitude: 44.883378, longitude: -93.222043 },
+        destination: { iata_code: 'LAS', name: 'Harry Reid Intl', time_zone: 'America/Los_Angeles', latitude: 36.084, longitude: -115.152 },
         segments: [
           {
             id: 'seg_out_1',
-            origin: { iata_code: 'MSP', name: 'Minneapolis-Saint Paul Intl', time_zone: 'America/Chicago' },
-            destination: { iata_code: 'LAS', name: 'Harry Reid Intl', time_zone: 'America/Los_Angeles' },
+            origin: { iata_code: 'MSP', name: 'Minneapolis-Saint Paul Intl', time_zone: 'America/Chicago', latitude: 44.883378, longitude: -93.222043 },
+            destination: { iata_code: 'LAS', name: 'Harry Reid Intl', time_zone: 'America/Los_Angeles', latitude: 36.084, longitude: -115.152 },
             origin_terminal: '1',
             destination_terminal: '3',
             departing_at: '2026-08-27T15:45:00',
@@ -57,13 +57,13 @@ function buildMspLasRoundTripOffer(overrides = {}) {
       {
         id: 'sli_return',
         duration: 'PT2H40M',
-        origin: { iata_code: 'LAS', name: 'Harry Reid Intl', time_zone: 'America/Los_Angeles' },
-        destination: { iata_code: 'MSP', name: 'Minneapolis-Saint Paul Intl', time_zone: 'America/Chicago' },
+        origin: { iata_code: 'LAS', name: 'Harry Reid Intl', time_zone: 'America/Los_Angeles', latitude: 36.084, longitude: -115.152 },
+        destination: { iata_code: 'MSP', name: 'Minneapolis-Saint Paul Intl', time_zone: 'America/Chicago', latitude: 44.883378, longitude: -93.222043 },
         segments: [
           {
             id: 'seg_ret_1',
-            origin: { iata_code: 'LAS', name: 'Harry Reid Intl', time_zone: 'America/Los_Angeles' },
-            destination: { iata_code: 'MSP', name: 'Minneapolis-Saint Paul Intl', time_zone: 'America/Chicago' },
+            origin: { iata_code: 'LAS', name: 'Harry Reid Intl', time_zone: 'America/Los_Angeles', latitude: 36.084, longitude: -115.152 },
+            destination: { iata_code: 'MSP', name: 'Minneapolis-Saint Paul Intl', time_zone: 'America/Chicago', latitude: 44.883378, longitude: -93.222043 },
             origin_terminal: '3',
             destination_terminal: '1',
             departing_at: '2026-08-30T13:30:00',
@@ -98,12 +98,12 @@ function buildOneStopOutboundSlice() {
   return {
     id: 'sli_outbound_1stop',
     duration: 'PT5H10M',
-    origin: { iata_code: 'MSP', name: 'Minneapolis-Saint Paul Intl', time_zone: 'America/Chicago' },
-    destination: { iata_code: 'LAS', name: 'Harry Reid Intl', time_zone: 'America/Los_Angeles' },
+    origin: { iata_code: 'MSP', name: 'Minneapolis-Saint Paul Intl', time_zone: 'America/Chicago', latitude: 44.883378, longitude: -93.222043 },
+    destination: { iata_code: 'LAS', name: 'Harry Reid Intl', time_zone: 'America/Los_Angeles', latitude: 36.084, longitude: -115.152 },
     segments: [
       {
         id: 'seg_a',
-        origin: { iata_code: 'MSP', name: 'Minneapolis-Saint Paul Intl', time_zone: 'America/Chicago' },
+        origin: { iata_code: 'MSP', name: 'Minneapolis-Saint Paul Intl', time_zone: 'America/Chicago', latitude: 44.883378, longitude: -93.222043 },
         destination: { iata_code: 'DEN', name: 'Denver Intl', time_zone: 'America/Denver' },
         departing_at: '2026-08-27T15:45:00',
         arriving_at: '2026-08-27T17:00:00',
@@ -118,7 +118,7 @@ function buildOneStopOutboundSlice() {
       {
         id: 'seg_b',
         origin: { iata_code: 'DEN', name: 'Denver Intl', time_zone: 'America/Denver' },
-        destination: { iata_code: 'LAS', name: 'Harry Reid Intl', time_zone: 'America/Los_Angeles' },
+        destination: { iata_code: 'LAS', name: 'Harry Reid Intl', time_zone: 'America/Los_Angeles', latitude: 36.084, longitude: -115.152 },
         departing_at: '2026-08-27T18:00:00',
         arriving_at: '2026-08-27T18:55:00',
         marketing_carrier: { iata_code: 'UA', name: 'United Airlines' },

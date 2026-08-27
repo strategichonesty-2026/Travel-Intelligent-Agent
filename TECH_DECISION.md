@@ -181,9 +181,100 @@ Strategic Honesty business logic
         v
   src/adapters/flights/
     flightsAdapter.js    (isConfigured() gate, searchFlights(), never fabricates on failure)
-    duffelClient.js       (thin wrapper around the official @duffel/api SDK)
-    mapFlightOffer.js     (raw Duffel Offer -> normalized FlightOption; pure, defensive)
+    mapFlightOffer.js    (raw Duffel Offer -> normalized FlightOption; pure, defensive)
+        |
+        v
+  src/adapters/duffel/duffelClient.js  (shared thin wrapper around the official @duffel/api SDK)
         |
         v
   @duffel/api (official SDK) -> Duffel API (api.duffel.com)
+```
+
+(Corrected 2026-08-27: `duffelClient.js` moved from `src/adapters/flights/` to `src/adapters/duffel/`
+when Phase 4 needed the same shared client for hotel search too — see the Phase 4 addendum below.)
+
+---
+
+## Phase 4 addendum: hotel/lodging provider re-evaluation
+
+**Date:** 2026-08-27
+
+### Why re-evaluated
+
+The Phase-0 scaffold and the Phase 3 addendum both left the hotel provider unresolved (Amadeus
+Hotel Search died with the same self-service shutdown as flights). Phase 4 needed a real answer.
+The first candidate tried was Duffel Stays — Duffel is already integrated for flights, so it would
+have meant one vendor/one credential for both — but calling it live on this account returned a
+clear, unambiguous rejection: `403 "This feature is not enabled for your account. Please contact
+sales."` Stays is gated behind a sales conversation, not available on the self-service flights
+plan. A proper Phase-0-style re-evaluation of the remaining major hotel-data providers followed,
+researched directly (not assumed from training knowledge, given Amadeus's shutdown had already
+proven that assumption unsafe once this session).
+
+### Repos/libraries evaluated
+
+| Candidate | License | Stars | Maintenance | Decision |
+|-----------|---------|-------|-------------|----------|
+| Duffel Stays | Vendor SaaS | N/A | Active vendor | **Rejected** — confirmed live: sales-gated on this account (`403 contact sales`), not self-service |
+| Amadeus Hotel Search | Vendor SaaS | N/A | N/A | **Rejected** — same self-service portal shutdown as the Phase 3 flight provider |
+| Booking.com Demand API | Vendor SaaS | N/A | Active | **Rejected** — partner registration portal is **currently closed to new applicants** entirely (confirmed via their own developer docs) |
+| Expedia Rapid API | Vendor SaaS | N/A | Active | **Rejected** — requires a partner application reviewed case-by-case; no self-service path |
+| RateHawk | Vendor SaaS | N/A | Active | **Rejected** — partner-gated; documentation itself states new/solo entrants face "higher scrutiny" than established travel-tech platforms |
+| Google Places API (New) | Vendor SaaS, Google Cloud, genuine self-service with a real free tier per SKU | N/A | Active — official Google product | **Accepted** — the one provider with a real, working self-service path (a Google Cloud billing account with a card on file, but no sales/partnership approval process). Confirmed: **no pricing, availability, or booking data whatsoever** — a places/business-info API, not a hotel-rate API. Chosen with that trade-off stated plainly to the user, not glossed over. |
+| Direct `fetch` vs. `@googlemaps/places` official SDK | Apache-2.0 (SDK) | N/A | SDK actively maintained (googleapis org) but labeled **"preview" / unstable**, defaults to heavier service-account auth | **Rejected the SDK, used direct `fetch`** — the plain REST API supports simple API-key auth (`X-Goog-Api-Key`) matching every other adapter in this codebase, and avoids depending on an explicitly-unstable preview library for what's one HTTP call |
+
+### Why accepted/rejected
+
+Every provider with real hotel *pricing* data (Duffel Stays, Booking.com, Expedia, RateHawk, the
+now-dead Amadeus) is gated behind a sales or partnership process — this is a structural fact about
+hotel distribution (commission agreements, PCI/compliance requirements) confirmed by direct
+research across five separate vendors, not a failure to search hard enough. Two smaller,
+less-established providers surfaced in an initial search (StayingAPI, StayAPI) claiming genuine
+self-service access to aggregated live pricing; these were flagged to the user as unverified/
+higher-risk (small vendor, pricing aggregated from other OTAs' listings — a potential ToS gray
+area) rather than adopted without that caveat. The user chose Google Places instead: unambiguously
+legitimate, real self-service signup, but explicitly no pricing data. This adapter therefore
+surfaces genuine property name/address/rating/review-count/location — cost, fees, and
+cancellation policy stay honestly UNVERIFIED, the same pattern flights used before Duffel existed.
+
+### License compatibility
+
+No new npm dependency was added (direct `fetch` against the documented REST API, matching every
+other HTTP-based adapter in this codebase). No copyleft/GPL/AGPL concerns.
+
+### Maintenance status
+
+Google Places API (New) is an actively developed, officially documented Google Cloud product (the
+"New" API explicitly supersedes the legacy Places API, which Google is migrating customers away
+from). Not evaluated as an npm dependency since none was added.
+
+### Security considerations
+
+- `GOOGLE_PLACES_API_KEY` is read from the environment only, never hardcoded, git-ignored via
+  `.env`. Per Google's own guidance, this key should be restricted (API restrictions + optionally
+  IP/referrer restrictions) in the Google Cloud Console — noted in the Phase 4 completion report
+  as a follow-up the user should do themselves, since it requires their Cloud Console access.
+- `src/adapters/hotels/hotelsAdapter.js` fails closed (`configured: false`) with no key set, and
+  returns `results: []` with a real `error` message (never a fabricated property) on any
+  provider-side failure.
+- No booking action exists for lodging in this phase — Places has no booking capability at all,
+  so there is nothing to accidentally expose as a fake "Book Now" link. `websiteUri`, when
+  present, is the property's own website — never presented as a validated booking link.
+
+### Final architecture decision
+
+```
+Strategic Honesty business logic
+  src/services/dealBoard.js         (reuses the destination airport's real coordinates from the
+                                      Phase 3 flight search to anchor the hotel search — no
+                                      separately maintained, potentially-imprecise city coordinates)
+        |
+        v
+  src/adapters/hotels/
+    hotelsAdapter.js    (isConfigured() gate, searchHotels(), never fabricates on failure)
+    placesClient.js     (thin wrapper around Places API (New) Text Search, plain fetch)
+    mapPlaceResult.js   (raw Places result -> normalized LodgingOption; pure, defensive)
+        |
+        v
+  Google Places API (New) (places.googleapis.com)
 ```

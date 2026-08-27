@@ -7,6 +7,7 @@ const { computeDefaultTripDates } = require('../domain/tripDates');
 const { CANDIDATE_STATUS, CANDIDATE_STATUS_RANK, deriveCandidateStatus } = require('../domain/candidateStatus');
 const flightsAdapter = require('../adapters/flights/flightsAdapter');
 const { selectBestFlight } = require('../domain/flightSelection');
+const hotelsAdapter = require('../adapters/hotels/hotelsAdapter');
 
 const AVG_DRIVING_SPEED_MPH = 55;
 const WARM_CATEGORIES = ['mexico', 'socal', 'florida', 'southwest'];
@@ -14,6 +15,9 @@ const WARM_CATEGORIES = ['mexico', 'socal', 'florida', 'southwest'];
 // provider and page-load time both argue against searching all 20+ catalog candidates on every
 // request. The rest keep the honest "no flight data yet" placeholder rather than a live lookup.
 const FLIGHT_LOOKUP_LIMIT = 8;
+// Hotel search radius around the destination airport — wide enough to catch a city's main hotel
+// district without pulling in properties from a genuinely different town.
+const HOTEL_SEARCH_RADIUS_METERS = 15000;
 
 /**
  * The personal travel deal desk (Phase 1) / deal-first discovery engine (Phase 2) — merges the
@@ -117,6 +121,18 @@ function describeBestFlight(best) {
 }
 
 /**
+ * Google Places has no pricing, so this is a real-property summary, not a rate comparison —
+ * "top" means highest rating/review-count, not cheapest (there's no price to compare).
+ */
+function describeLodging(results) {
+  if (results.length === 0) return 'Unverified — no properties found';
+  const ranked = [...results].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || (b.reviewCount ?? 0) - (a.reviewCount ?? 0));
+  const top = ranked[0];
+  const ratingText = top.rating != null ? `${top.rating}★ (${top.reviewCount ?? '?'} reviews)` : 'no rating available';
+  return `${results.length} propert${results.length === 1 ? 'y' : 'ies'} found near destination · top: ${top.name} — ${ratingText}`;
+}
+
+/**
  * Looks up a real flight (when Duffel is configured and this destination has an airportCode) and
  * folds it into the row. Trip-level totalCost/budgetStatus stay UNVERIFIED even with a real flight
  * price, because lodging isn't priced yet (Phase 4/5) — showing "budget: within preferred" off a
@@ -129,6 +145,7 @@ async function toGeneralRow(d, { nights, dates, profile, departDate, returnDate,
   let flightPrice = { amount: null, label: 'UNVERIFIED' };
   let flightSource = null;
   let flightCheckedAt = null;
+  let destinationCoords = null;
 
   if (d.airportCode && allowFlightLookup && flightsAdapter.isConfigured()) {
     const search = await flightsAdapter.searchFlights({
@@ -152,6 +169,10 @@ async function toGeneralRow(d, { nights, dates, profile, departDate, returnDate,
         flightSummary = describeBestFlight(best);
         travelTimeStatus = classifyTravelTime(best.oneWayTravelHours, profile.travelTime);
         flightPrice = { amount: best.offer.totalPrice, label: best.offer.totalPrice != null ? 'VERIFIED' : 'UNVERIFIED' };
+        const arrivalAirport = best.outbound.segments[best.outbound.segments.length - 1].arrival;
+        if (arrivalAirport.latitude != null && arrivalAirport.longitude != null) {
+          destinationCoords = { latitude: arrivalAirport.latitude, longitude: arrivalAirport.longitude };
+        }
       }
     }
   } else if (!d.airportCode) {
@@ -162,7 +183,32 @@ async function toGeneralRow(d, { nights, dates, profile, departDate, returnDate,
     flightSummary = 'Unverified — flight lookup skipped for this page (see top candidates only)';
   }
 
-  // Trip-level cost/budget intentionally stay UNVERIFIED — see function comment.
+  // Lodging: Google Places has no pricing/availability at all (see hotelsAdapter.js) — this only
+  // ever surfaces real property name/rating/review data, never a rate. Reuses the destination
+  // airport's real coordinates from the flight search above rather than a separately maintained
+  // (and potentially imprecise) set of city coordinates, so it only runs when a flight was found.
+  let lodgingSummary = 'Unverified — no lodging data yet';
+  let lodgingSource = null;
+  let lodgingCheckedAt = null;
+  if (destinationCoords && hotelsAdapter.isConfigured()) {
+    const staySearch = await hotelsAdapter.searchHotels({
+      latitude: destinationCoords.latitude,
+      longitude: destinationCoords.longitude,
+      radiusMeters: HOTEL_SEARCH_RADIUS_METERS,
+    });
+    lodgingSource = staySearch.source;
+    lodgingCheckedAt = staySearch.checkedAt;
+    lodgingSummary = staySearch.error
+      ? `Unverified — lodging search failed: ${staySearch.error}`
+      : describeLodging(staySearch.results);
+  } else if (destinationCoords && !hotelsAdapter.isConfigured()) {
+    lodgingSummary = 'Unverified — no lodging data yet';
+  } else if (!destinationCoords) {
+    lodgingSummary = 'Unverified — no flight found to anchor a lodging search';
+  }
+
+  // Trip-level cost/budget intentionally stay UNVERIFIED — Google Places has no pricing at all,
+  // and flight-only price still can't represent the whole trip. See function comment.
   const candidateStatus = deriveCandidateStatus({
     budgetStatus: 'UNVERIFIED',
     travelTimeStatus: travelTimeStatus.status,
@@ -181,7 +227,9 @@ async function toGeneralRow(d, { nights, dates, profile, departDate, returnDate,
     flightPrice,
     flightSource,
     flightCheckedAt,
-    lodging: 'Unverified — no lodging data yet',
+    lodging: lodgingSummary,
+    lodgingSource,
+    lodgingCheckedAt,
     totalCost: { amount: null, label: 'UNVERIFIED' },
     budgetStatus: { status: 'UNVERIFIED', label: 'Unverified — no pricing yet' },
     travelTimeStatus,

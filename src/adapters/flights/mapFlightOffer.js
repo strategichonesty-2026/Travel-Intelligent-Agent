@@ -37,6 +37,11 @@ function mapAirportSide(segment, side) {
     localTime: at ?? null,
     terminal: terminal ?? null,
     timeZone: place?.time_zone ?? null,
+    // Real airport coordinates from Duffel's own Airport object — reused by dealBoard.js to
+    // anchor a Google Places hotel search near the actual destination, rather than maintaining a
+    // separate, potentially-imprecise set of hardcoded city coordinates (Phase 4).
+    latitude: typeof place?.latitude === 'number' ? place.latitude : null,
+    longitude: typeof place?.longitude === 'number' ? place.longitude : null,
   };
 }
 

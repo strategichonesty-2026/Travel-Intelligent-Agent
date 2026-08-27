@@ -199,7 +199,10 @@ function renderDealRow(row) {
       ${row.flightPrice?.amount != null ? `<span class="mini">$${row.flightPrice.amount.toLocaleString()} flight only &middot; ${row.flightPrice.label}</span>` : ''}
       ${row.flightSource && row.flightCheckedAt ? `<span class="mini">source: ${esc(row.flightSource)} &middot; checked ${esc(row.flightCheckedAt.slice(0, 16).replace('T', ' '))} UTC</span>` : ''}
     </td>
-    <td>${esc(row.lodging)}</td>
+    <td>
+      ${esc(row.lodging)}
+      ${row.lodgingSource && row.lodgingCheckedAt ? `<span class="mini">source: ${esc(row.lodgingSource)} &middot; checked ${esc(row.lodgingCheckedAt.slice(0, 16).replace('T', ' '))} UTC</span>` : ''}
+    </td>
     <td class="num">${costText}<span class="mini">${row.totalCost.label !== 'UNVERIFIED' ? row.totalCost.label : ''}</span></td>
     <td>${badge(row.budgetStatus.label, budgetStyle)}</td>
     <td>${badge(row.travelTimeStatus.label, timeStyle)}${row.travelTimeStatus.hours != null ? `<span class="mini">${row.travelTimeStatus.hours}h</span>` : ''}</td>

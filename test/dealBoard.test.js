@@ -3,7 +3,18 @@ const assert = require('node:assert/strict');
 const { buildDealBoard } = require('../src/services/dealBoard');
 const { DEFAULT_PROFILE } = require('../src/data/defaultProfile');
 const flightsAdapter = require('../src/adapters/flights/flightsAdapter');
+const hotelsAdapter = require('../src/adapters/hotels/hotelsAdapter');
 const { buildMspLasRoundTripOffer } = require('./fixtures/duffelOffer');
+const { buildPlacesSearchResponse } = require('./fixtures/placesResult');
+
+function withEnv(key, value, fn) {
+  const original = process.env[key];
+  process.env[key] = value;
+  return fn().finally(() => {
+    if (original === undefined) delete process.env[key];
+    else process.env[key] = original;
+  });
+}
 
 afterEach(() => {
   mock.restoreAll();
@@ -132,4 +143,64 @@ test('buildDealBoard: a flight-search failure surfaces the real error, never a f
     if (originalToken === undefined) delete process.env.DUFFEL_ACCESS_TOKEN;
     else process.env.DUFFEL_ACCESS_TOKEN = originalToken;
   }
+});
+
+test('buildDealBoard: with a flight found and Google Places configured, lodging gets a real property summary', async () => {
+  await withEnv('DUFFEL_ACCESS_TOKEN', 'duffel_test_fake_for_unit_test', () => withEnv('GOOGLE_PLACES_API_KEY', 'fake-key-for-unit-test', async () => {
+    mock.method(flightsAdapter, 'searchFlights', async () => ({
+      configured: true,
+      error: null,
+      source: 'Duffel',
+      checkedAt: '2026-08-26T12:00:00.000Z',
+      results: [require('../src/adapters/flights/mapFlightOffer').mapFlightOffer(buildMspLasRoundTripOffer())],
+    }));
+    mock.method(hotelsAdapter, 'searchHotels', async () => ({
+      configured: true,
+      error: null,
+      source: 'Google Places',
+      checkedAt: '2026-08-26T12:00:00.000Z',
+      results: buildPlacesSearchResponse().places.map(require('../src/adapters/hotels/mapPlaceResult').mapPlaceResult),
+    }));
+
+    const rows = await buildDealBoard({ profile: DEFAULT_PROFILE, filter: 'roadtrip' });
+    const withLodging = rows.find((r) => r.lodging.includes('propert'));
+    assert.ok(withLodging, 'expected at least one row to get a real lodging summary');
+    assert.match(withLodging.lodging, /Brown Palace Hotel/);
+    assert.match(withLodging.lodging, /★/);
+    assert.equal(withLodging.lodgingSource, 'Google Places');
+    // Cost still stays UNVERIFIED — Places has no pricing at all.
+    assert.equal(withLodging.totalCost.amount, null);
+  }));
+});
+
+test('buildDealBoard: a lodging-search failure surfaces the real error, never a fabricated property', async () => {
+  await withEnv('DUFFEL_ACCESS_TOKEN', 'duffel_test_fake_for_unit_test', () => withEnv('GOOGLE_PLACES_API_KEY', 'fake-key-for-unit-test', async () => {
+    mock.method(flightsAdapter, 'searchFlights', async () => ({
+      configured: true,
+      error: null,
+      source: 'Duffel',
+      checkedAt: '2026-08-26T12:00:00.000Z',
+      results: [require('../src/adapters/flights/mapFlightOffer').mapFlightOffer(buildMspLasRoundTripOffer())],
+    }));
+    mock.method(hotelsAdapter, 'searchHotels', async () => ({
+      configured: true,
+      error: 'Google Places search failed: 403 This API method requires billing to be enabled',
+      source: 'Google Places',
+      checkedAt: '2026-08-26T12:00:00.000Z',
+      results: [],
+    }));
+
+    const rows = await buildDealBoard({ profile: DEFAULT_PROFILE, filter: 'roadtrip' });
+    assert.ok(rows.some((r) => r.lodging.includes('lodging search failed')));
+    assert.ok(rows.every((r) => r.lodging.startsWith('Unverified')));
+  }));
+});
+
+test('buildDealBoard: without a flight found, lodging never runs (no coordinates to anchor a search)', async () => {
+  await withEnv('GOOGLE_PLACES_API_KEY', 'fake-key-for-unit-test', async () => {
+    const searchSpy = mock.method(hotelsAdapter, 'searchHotels', async () => ({ configured: true, error: null, source: 'Google Places', checkedAt: 'x', results: [] }));
+    const rows = await buildDealBoard({ profile: DEFAULT_PROFILE, filter: 'roadtrip' });
+    assert.equal(searchSpy.mock.callCount(), 0);
+    assert.ok(rows.every((r) => r.lodging.startsWith('Unverified')));
+  });
 });

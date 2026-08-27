@@ -42,6 +42,8 @@ test('mapFlightOffer maps price, itineraries, and segment details from a real-sh
   assert.equal(seg.departure.timeZone, 'America/Chicago');
   assert.equal(seg.arrival.airportCode, 'LAS');
   assert.equal(seg.arrival.timeZone, 'America/Los_Angeles');
+  assert.equal(seg.departure.latitude, 44.883378);
+  assert.equal(seg.arrival.longitude, -115.152);
   assert.equal(seg.checkedBagsIncluded, 1);
   assert.equal(seg.cabinClass, 'economy');
 });

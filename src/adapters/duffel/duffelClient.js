@@ -1,13 +1,19 @@
 /**
- * Thin wrapper around Duffel's official Node.js SDK (@duffel/api). No business logic here — see
- * flightsAdapter.js for the isConfigured() gate and mapFlightOffer.js for turning a raw Duffel
- * offer into this app's normalized shape.
+ * Thin wrapper around Duffel's official Node.js SDK (@duffel/api) for flight search. No business
+ * logic here — see flightsAdapter.js for the isConfigured() gate and mapFlightOffer.js for
+ * turning a raw Duffel offer into this app's normalized shape.
  *
  * Amadeus for Developers' self-service portal was decommissioned (Enterprise-only now, which
  * needs a sales process this project can't go through) — Duffel replaced it as the flight
  * provider target. DUFFEL_ACCESS_TOKEN determines the environment: a token prefixed
  * `duffel_test_` only ever touches Duffel's test data; a live token touches real inventory. There
  * is only one base URL (https://api.duffel.com) — the SDK handles that, not this wrapper.
+ *
+ * Duffel also offers a hotel-search API (Stays), and this client briefly had a searchStays()
+ * function — removed after confirming live that Stays is gated behind a sales conversation on
+ * this account ("This feature is not enabled for your account. Please contact sales."). Hotels
+ * are served by Google Places instead — see src/adapters/hotels/ and TECH_DECISION.md's Phase 4
+ * addendum.
  */
 
 const { Duffel } = require('@duffel/api');

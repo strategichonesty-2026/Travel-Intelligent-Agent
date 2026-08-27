@@ -1,6 +1,6 @@
 const { test, mock, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
-const duffelClient = require('../src/adapters/flights/duffelClient');
+const duffelClient = require('../src/adapters/duffel/duffelClient');
 const flightsAdapter = require('../src/adapters/flights/flightsAdapter');
 const { buildMspLasRoundTripOffer } = require('./fixtures/duffelOffer');
 

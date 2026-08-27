@@ -8,7 +8,7 @@
  * ...` rather than throwing into the caller or inventing a fallback flight.
  */
 
-const duffelClient = require('./duffelClient');
+const duffelClient = require('../duffel/duffelClient');
 const { mapFlightOffer } = require('./mapFlightOffer');
 
 function isConfigured() {
