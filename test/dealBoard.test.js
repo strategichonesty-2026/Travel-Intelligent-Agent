@@ -6,6 +6,8 @@ const flightsAdapter = require('../src/adapters/flights/flightsAdapter');
 const hotelsAdapter = require('../src/adapters/hotels/hotelsAdapter');
 const { buildMspLasRoundTripOffer } = require('./fixtures/duffelOffer');
 const { buildPlacesSearchResponse } = require('./fixtures/placesResult');
+const { clearCacheForTests } = require('../src/services/liveDataCache');
+const { resetBudgetForTests } = require('../src/services/callBudget');
 
 function withEnv(key, value, fn) {
   const original = process.env[key];
@@ -16,8 +18,15 @@ function withEnv(key, value, fn) {
   });
 }
 
+// The live-call cache and weekly budget are file-backed (see liveDataCache.js/callBudget.js) so
+// they persist across tests in this file unless cleared — without this, an earlier test's
+// successful mocked flight/hotel search would still be sitting in cache when a later test expects
+// a fresh call (e.g. to exercise a failure path), silently serving stale data instead of calling
+// the (differently-mocked) adapter at all.
 afterEach(() => {
   mock.restoreAll();
+  clearCacheForTests();
+  resetBudgetForTests();
 });
 
 test('buildDealBoard: camping filter returns only real researched campground rows with a computed cost', async () => {
@@ -203,4 +212,43 @@ test('buildDealBoard: without a flight found, lodging never runs (no coordinates
     assert.equal(searchSpy.mock.callCount(), 0);
     assert.ok(rows.every((r) => r.lodging.startsWith('Unverified')));
   });
+});
+
+test('buildDealBoard: real-money protection — a second run within the cache window reuses results instead of calling the provider again', async () => {
+  await withEnv('DUFFEL_ACCESS_TOKEN', 'duffel_test_fake_for_unit_test', async () => {
+    const flightSpy = mock.method(flightsAdapter, 'searchFlights', async () => ({
+      configured: true,
+      error: null,
+      source: 'Duffel',
+      checkedAt: '2026-08-27T12:00:00.000Z',
+      results: [require('../src/adapters/flights/mapFlightOffer').mapFlightOffer(buildMspLasRoundTripOffer())],
+    }));
+
+    await buildDealBoard({ profile: DEFAULT_PROFILE, filter: 'roadtrip', startDate: '2026-09-03' });
+    const callsAfterFirstRun = flightSpy.mock.callCount();
+    assert.ok(callsAfterFirstRun > 0, 'expected the first run to actually call the provider');
+
+    const rowsSecondRun = await buildDealBoard({ profile: DEFAULT_PROFILE, filter: 'roadtrip', startDate: '2026-09-03' });
+    assert.equal(flightSpy.mock.callCount(), callsAfterFirstRun, 'second run within the cache window must not call the provider again');
+    const cachedRow = rowsSecondRun.find((r) => r.flightSummary.includes('cached this week'));
+    assert.ok(cachedRow, 'expected a row to be honestly labeled as served from cache');
+  });
+});
+
+test('buildDealBoard: real-money protection — an exhausted weekly budget stops live calls and reports it honestly, never a fabricated flight', async () => {
+  const originalMax = process.env.MAX_FLIGHT_CALLS_PER_WEEK;
+  process.env.MAX_FLIGHT_CALLS_PER_WEEK = '0'; // simulate an already-exhausted budget
+
+  await withEnv('DUFFEL_ACCESS_TOKEN', 'duffel_test_fake_for_unit_test', async () => {
+    const flightSpy = mock.method(flightsAdapter, 'searchFlights', async () => {
+      throw new Error('should never be called — budget is exhausted');
+    });
+
+    const rows = await buildDealBoard({ profile: DEFAULT_PROFILE, filter: 'roadtrip', startDate: '2026-09-10' });
+    assert.equal(flightSpy.mock.callCount(), 0);
+    assert.ok(rows.some((r) => r.flightSummary.includes('call budget') && r.flightSummary.includes('reached')));
+  });
+
+  if (originalMax === undefined) delete process.env.MAX_FLIGHT_CALLS_PER_WEEK;
+  else process.env.MAX_FLIGHT_CALLS_PER_WEEK = originalMax;
 });

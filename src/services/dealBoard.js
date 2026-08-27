@@ -8,6 +8,8 @@ const { CANDIDATE_STATUS, CANDIDATE_STATUS_RANK, deriveCandidateStatus } = requi
 const flightsAdapter = require('../adapters/flights/flightsAdapter');
 const { selectBestFlight } = require('../domain/flightSelection');
 const hotelsAdapter = require('../adapters/hotels/hotelsAdapter');
+const { getCacheEntry, setCacheEntry } = require('./liveDataCache');
+const { tryConsumeBudget } = require('./callBudget');
 
 const AVG_DRIVING_SPEED_MPH = 55;
 const WARM_CATEGORIES = ['mexico', 'socal', 'florida', 'southwest'];
@@ -18,6 +20,62 @@ const FLIGHT_LOOKUP_LIMIT = 8;
 // Hotel search radius around the destination airport — wide enough to catch a city's main hotel
 // district without pulling in properties from a genuinely different town.
 const HOTEL_SEARCH_RADIUS_METERS = 15000;
+
+// Real-money protection (see src/services/liveDataCache.js and callBudget.js): a repeat page
+// load within CACHE_TTL_MS reuses the last real response instead of calling the provider again —
+// matching a traveler who checks in on the order of "once a week," per their own stated usage —
+// and even a genuine cache miss is hard-capped at MAX_*_CALLS_PER_WEEK live calls, independent of
+// (in addition to, not instead of) whatever quota is set on the provider's own dashboard. Both are
+// env-overridable since the "right" numbers depend on real usage/cost tolerance, not something to
+// hardcode confidently.
+// Read fresh each call rather than cached as module-level constants — process env doesn't change
+// during normal operation, but reading it live keeps this correctly testable (each test can set
+// its own budget) instead of freezing whatever value happened to be set at first module load.
+function cacheTtlMs() {
+  return Number(process.env.LIVE_DATA_CACHE_TTL_HOURS || 24 * 7) * 60 * 60 * 1000;
+}
+function maxFlightCallsPerWeek() {
+  return Number(process.env.MAX_FLIGHT_CALLS_PER_WEEK || 50);
+}
+function maxHotelCallsPerWeek() {
+  return Number(process.env.MAX_HOTEL_CALLS_PER_WEEK || 50);
+}
+
+/**
+ * Wraps a live provider call with the cache-then-budget-then-call sequence described above.
+ * `fetcher` must return the adapter's usual { configured, results, error, source, checkedAt }
+ * shape. Returns that same shape, plus `fromCache`/`stale`/`budgetExhausted` so callers can
+ * message the traveler honestly about which case happened — never a silent difference.
+ */
+async function guardedLiveCall({ provider, cacheKey, maxCallsPerWeek, fetcher }) {
+  const cached = getCacheEntry(cacheKey, cacheTtlMs());
+  if (cached && !cached.stale) {
+    return { ...cached.data, fromCache: true, stale: false, cachedAt: cached.cachedAt };
+  }
+
+  const { allowed } = tryConsumeBudget(provider, maxCallsPerWeek);
+  if (!allowed) {
+    if (cached) {
+      // Budget spent, but we have a real (just stale) answer — better than nothing, clearly
+      // labeled as stale rather than presented as fresh.
+      return { ...cached.data, fromCache: true, stale: true, cachedAt: cached.cachedAt };
+    }
+    return {
+      configured: true,
+      results: [],
+      error: `Weekly ${provider} call budget (${maxCallsPerWeek}) reached — no live lookups until the budget window resets. This is a code-level cap, separate from your provider account's own quota.`,
+      source: provider,
+      checkedAt: null,
+      budgetExhausted: true,
+    };
+  }
+
+  const result = await fetcher();
+  if (result.configured && !result.error) {
+    setCacheEntry(cacheKey, result);
+  }
+  return { ...result, fromCache: false, stale: false };
+}
 
 /**
  * The personal travel deal desk (Phase 1) / deal-first discovery engine (Phase 2) — merges the
@@ -133,6 +191,17 @@ function describeLodging(results) {
 }
 
 /**
+ * Makes it visible when a shown result came from cache rather than a fresh call, and doubly so
+ * when that cache entry is past its normal TTL (only served because the call budget was
+ * exhausted) — never let a cached/stale result look indistinguishable from a fresh one.
+ */
+function cacheFreshnessNote(searchResult) {
+  if (searchResult.stale) return ' (cached — past normal refresh window, weekly call budget reached)';
+  if (searchResult.fromCache) return ' (cached this week)';
+  return '';
+}
+
+/**
  * Looks up a real flight (when Duffel is configured and this destination has an airportCode) and
  * folds it into the row. Trip-level totalCost/budgetStatus stay UNVERIFIED even with a real flight
  * price, because lodging isn't priced yet (Phase 4/5) — showing "budget: within preferred" off a
@@ -148,25 +217,32 @@ async function toGeneralRow(d, { nights, dates, profile, departDate, returnDate,
   let destinationCoords = null;
 
   if (d.airportCode && allowFlightLookup && flightsAdapter.isConfigured()) {
-    const search = await flightsAdapter.searchFlights({
-      origin: profile.airport,
-      destination: d.airportCode,
-      departDate,
-      returnDate,
-      travelers: profile.travelers,
-      maxConnections: profile.flight.maxConnections,
+    const search = await guardedLiveCall({
+      provider: 'flights',
+      maxCallsPerWeek: maxFlightCallsPerWeek(),
+      cacheKey: `flights:${profile.airport}:${d.airportCode}:${departDate}:${returnDate}:${profile.travelers}`,
+      fetcher: () => flightsAdapter.searchFlights({
+        origin: profile.airport,
+        destination: d.airportCode,
+        departDate,
+        returnDate,
+        travelers: profile.travelers,
+        maxConnections: profile.flight.maxConnections,
+      }),
     });
     flightSource = search.source;
     flightCheckedAt = search.checkedAt;
 
-    if (search.error) {
+    if (search.budgetExhausted) {
+      flightSummary = `Unverified — ${search.error}`;
+    } else if (search.error) {
       flightSummary = `Unverified — flight search failed: ${search.error}`;
     } else if (search.results.length === 0) {
       flightSummary = 'Unverified — no matching flights found';
     } else {
       const best = selectBestFlight(search.results, profile);
       if (best) {
-        flightSummary = describeBestFlight(best);
+        flightSummary = describeBestFlight(best) + cacheFreshnessNote(search);
         travelTimeStatus = classifyTravelTime(best.oneWayTravelHours, profile.travelTime);
         flightPrice = { amount: best.offer.totalPrice, label: best.offer.totalPrice != null ? 'VERIFIED' : 'UNVERIFIED' };
         const arrivalAirport = best.outbound.segments[best.outbound.segments.length - 1].arrival;
@@ -191,16 +267,25 @@ async function toGeneralRow(d, { nights, dates, profile, departDate, returnDate,
   let lodgingSource = null;
   let lodgingCheckedAt = null;
   if (destinationCoords && hotelsAdapter.isConfigured()) {
-    const staySearch = await hotelsAdapter.searchHotels({
-      latitude: destinationCoords.latitude,
-      longitude: destinationCoords.longitude,
-      radiusMeters: HOTEL_SEARCH_RADIUS_METERS,
+    const roundedLat = destinationCoords.latitude.toFixed(2);
+    const roundedLng = destinationCoords.longitude.toFixed(2);
+    const staySearch = await guardedLiveCall({
+      provider: 'hotels',
+      maxCallsPerWeek: maxHotelCallsPerWeek(),
+      cacheKey: `hotels:${roundedLat}:${roundedLng}:${HOTEL_SEARCH_RADIUS_METERS}`,
+      fetcher: () => hotelsAdapter.searchHotels({
+        latitude: destinationCoords.latitude,
+        longitude: destinationCoords.longitude,
+        radiusMeters: HOTEL_SEARCH_RADIUS_METERS,
+      }),
     });
     lodgingSource = staySearch.source;
     lodgingCheckedAt = staySearch.checkedAt;
-    lodgingSummary = staySearch.error
-      ? `Unverified — lodging search failed: ${staySearch.error}`
-      : describeLodging(staySearch.results);
+    lodgingSummary = staySearch.budgetExhausted
+      ? `Unverified — ${staySearch.error}`
+      : staySearch.error
+        ? `Unverified — lodging search failed: ${staySearch.error}`
+        : describeLodging(staySearch.results) + cacheFreshnessNote(staySearch);
   } else if (destinationCoords && !hotelsAdapter.isConfigured()) {
     lodgingSummary = 'Unverified — no lodging data yet';
   } else if (!destinationCoords) {
