@@ -442,3 +442,38 @@ Four additional campgrounds were identified as plausible matches to this pattern
 10. **Lake Elmo Park Reserve, Cross Lake Recreation Area, Elk Rock State Park, Balsam Lake Pine Park** (discovery-pass additions) — hookup/rate facts are generally well-sourced, but individual-site waterfront/lake-view status was not confirmed for any of the four; Balsam Lake Pine Park also has no reservation system.
 
 **Properties with HIGH-confidence, official-source, site-level QUALIFIED-or-clearly-disqualified evidence:** Shell Lake Municipal Campground (lakefront sites #1–12 qualify pending amperage/flush-toilet wording confirmation) and Baker Campground (explicitly disqualified — no lake view from sites, no individual water hookup, both confirmed on the official Three Rivers Park District page).
+
+---
+
+## 2026-08-31 weekly re-verification pass
+
+This session's network egress policy blocked direct fetch/navigation to every domain in this
+file — dovr.org, recreation.gov, dnr.state.mn.us, threeriversparks.org, washburncountyparks.us,
+countrycampground.org, pettiboneresort.com, herbsterwisconsin.com, championsriversideresort.com,
+washingtoncountymn.gov, campspot.com, reserveamerica.com, and even en.wikipedia.org all returned a
+proxy-level 403 (confirmed via the environment's own proxy status endpoint — an organization
+egress-policy denial, not a transient failure). Only WebSearch's aggregated summaries were
+reachable, which does not meet this document's evidence bar for an official-source confirmation.
+
+**No field on any of the 21 existing entries above was changed this pass** — nothing was
+independently navigated to, so nothing could be honestly upgraded past its existing confidence
+level or given a fresh verifiedAt. Leads surfaced via search but NOT written into the data file,
+pending a pass with working outbound access:
+- Herbster Campground: search snippets suggest the campground may now take reservations through
+  an online availability calendar (`herbsterwisconsin.com/rv-site-availability-calendar/`),
+  which would reverse its current hard disqualification — but other snippets still say
+  first-come-first-served only, so this is unresolved and high-stakes enough to need a direct
+  fetch before touching the record.
+- Country Campground (Detroit Lakes): a possible $42/night rate (`countrycampground.org/rates.htm`).
+- Champions Riverside Resort: a possible sewer hookup ("full hookups including electric, water,
+  and sewer" per aggregator snippets) and a newly-found official Rates & Policies page URL.
+- Several MN DNR parks (Jay Cooke, Wild River, William O'Brien) and Baker Campground: no changes
+  found, but their official fee pages could not be re-checked either.
+
+**One new discovery was added** to `SIMILAR_CAMPGROUND_DISCOVERY`: Northern Skys RV Resorts Mille
+Lacs (Isle, MN, on Lake Mille Lacs) — a real, live Campspot-booked resort with itemized per-tier
+pricing, added at LOW confidence since it's sourced from WebSearch summaries only, not a direct
+fetch. See its `notes` field in `src/data/favoriteCampgrounds.js` for the full caveat.
+
+**Recommendation:** re-run this pass once outbound access to campground/park/reservation domains
+is restored from this environment.

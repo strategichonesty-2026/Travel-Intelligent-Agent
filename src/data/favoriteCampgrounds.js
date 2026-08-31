@@ -18,6 +18,11 @@ const { WATERFRONT_STATUS, HOOKUP, AMPERAGE, EVIDENCE_CONFIDENCE } = require('..
 
 const VERIFIED_AT = '2026-08-23T00:00:00.000Z';
 
+// Weekly re-verification pass — see the "2026-08-31 weekly re-verification pass" note below
+// the FAVORITE_CAMPGROUNDS array for why this exists as a distinct constant instead of just
+// bumping VERIFIED_AT for the whole file.
+const RESEARCH_PASS_2026_08_31 = '2026-08-31T00:00:00.000Z';
+
 function id(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
@@ -46,6 +51,7 @@ function record({
   confidence,
   sources,
   notes,
+  verifiedAt = VERIFIED_AT,
 }) {
   return {
     id: id(resolvedName),
@@ -69,7 +75,7 @@ function record({
     bathhouse,
     nightlyRate,
     cancellationPolicy,
-    verification: { confidence, sources, verifiedAt: VERIFIED_AT, notes },
+    verification: { confidence, sources, verifiedAt, notes },
   };
 }
 
@@ -428,6 +434,20 @@ const FAVORITE_CAMPGROUNDS = [
 ];
 
 /**
+ * 2026-08-31 weekly re-verification pass: this session's network egress policy blocked direct
+ * fetch/navigation to every campground, park, and reservation-system domain in this file
+ * (dovr.org, recreation.gov, dnr.state.mn.us, threeriversparks.org, washburncountyparks.us,
+ * countrycampground.org, pettiboneresort.com, herbsterwisconsin.com, championsriversideresort.com,
+ * washingtoncountymn.gov, campspot.com, reserveamerica.com — all returned a proxy-level 403).
+ * Only WebSearch's aggregated summaries were reachable, which does not meet this file's evidence
+ * bar for updating an existing HIGH/MEDIUM-confidence fact or bumping verifiedAt — so no field on
+ * any of the 17 favorites or 4 existing discoveries above/below was changed this pass, despite
+ * several promising unconfirmed leads (a possible online-reservation system now live at Herbster,
+ * a possible $42/night rate at Country Campground, a possible sewer hookup at Champions Riverside).
+ * Re-run this pass once outbound access to these domains is restored.
+ */
+
+/**
  * Not a campground — the official Wisconsin DNR reservation PLATFORM used across the entire WI
  * state park system (spec section 10's "Wisconsin GoingToCamp system" entry). Kept separate from
  * FAVORITE_CAMPGROUNDS since it has no qualification verdict of its own; individual WI state
@@ -524,6 +544,28 @@ const SIMILAR_CAMPGROUND_DISCOVERY = [
     confidence: EVIDENCE_CONFIDENCE.LOW,
     sources: ['search summary referencing https://balsamlakevillage.com/park-recreation/'],
     notes: 'Findings drawn from a search-engine summary, not a directly fetched official page. No reservation system exists, which independently fails this product\'s bookable-reservation premise regardless of amenity facts.',
+  }),
+  record({
+    requestedName: null,
+    resolvedName: 'Northern Skys RV Resorts Mille Lacs',
+    location: 'Isle, MN (Mille Lacs County), on Lake Mille Lacs',
+    drivingHoursFrom55449: 1.5,
+    officialWebsiteUrl: 'https://northernskys.com/mille-lacs/',
+    officialReservationUrl: 'https://www.campspot.com/park/northern-skys-rv-resorts-mille-lacs',
+    seasonOfOperation: null,
+    siteTypes: ['184 total RV sites across 4 tiers: Full Hookup, Wharf Standard, Park, and Refuge'],
+    waterfrontStatus: WATERFRONT_STATUS.LAKE_ACCESS,
+    waterHookup: HOOKUP.YES,
+    electricHookup: HOOKUP.YES,
+    electricAmperage: AMPERAGE.UNKNOWN,
+    sewerHookup: HOOKUP.YES,
+    bathhouse: { flushToilets: HOOKUP.UNKNOWN, hotColdWater: HOOKUP.UNKNOWN, hotShowers: HOOKUP.YES },
+    nightlyRate: { amount: 65, currency: 'USD', unit: 'night (Full Hookup / Wharf Standard tier)', notes: 'Full Hookup and Wharf Standard tiers $65/night ($850/month, $3000/season); Park/Refuge tier $35/night ($575/month, $1850/season). Seen via WebSearch snippets of the resort\'s own pricing content and its Campspot listing — not independently fetched this pass.' },
+    cancellationPolicy: null,
+    confidence: EVIDENCE_CONFIDENCE.LOW,
+    sources: ['https://www.campspot.com/park/northern-skys-rv-resorts-mille-lacs', 'https://northernskys.com/mille-lacs/', 'https://northernskys.com/about/'],
+    notes: 'New discovery, 2026-08-31 pass. This session\'s network policy blocked direct fetch of every candidate site (see note above the FAVORITE_CAMPGROUNDS/SIMILAR_CAMPGROUND_DISCOVERY boundary), so nothing here was independently navigated to — every fact below is from a WebSearch summary, not a direct page load; treat as a lead, not a confirmed fact. Most promising signal: a real, live Campspot online-booking URL and itemized per-tier pricing, closer to this traveler\'s booking-ready pattern than most existing discovery entries. Biggest gaps: waterfront status is only confirmed at the campground level (1,300ft of Lake Mille Lacs shoreline) — which tier, if any, is actually beachfront vs. set back is unconfirmed; sewerHookup is inferred from the "Full Hookup" tier name rather than itemized directly; electric amperage and flush-toilet status are unconfirmed.',
+    verifiedAt: RESEARCH_PASS_2026_08_31,
   }),
 ];
 
