@@ -23,6 +23,9 @@ const VERIFIED_AT = '2026-08-23T00:00:00.000Z';
 // bumping VERIFIED_AT for the whole file.
 const RESEARCH_PASS_2026_08_31 = '2026-08-31T00:00:00.000Z';
 
+// Same reasoning, one week later — see the "2026-09-07 weekly re-verification pass" note below.
+const RESEARCH_PASS_2026_09_07 = '2026-09-07T00:00:00.000Z';
+
 function id(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
@@ -448,6 +451,22 @@ const FAVORITE_CAMPGROUNDS = [
  */
 
 /**
+ * 2026-09-07 weekly re-verification pass: the same organization egress policy blocked this
+ * session too, and this pass confirmed the block is total rather than a per-domain denylist —
+ * direct fetch attempts against dovr.org, www.dnr.state.mn.us, www.campspot.com,
+ * www.recreation.gov, en.wikipedia.org, and even www.anthropic.com were all rejected by the
+ * proxy (`connect_rejected`, gateway 403), and the proxy status endpoint confirms outbound is
+ * non-selective (`"selective": false`) with no per-tool exception for these domains. Only
+ * WebSearch's aggregated summaries were reachable — again not enough to honestly upgrade or
+ * bump verifiedAt on any of the 17 favorites or 5 prior discoveries, so none of their fields
+ * were touched this pass either. One new discovery was added below (Rice Creek Chain of Lakes
+ * Regional Park, Anoka County) at LOW confidence on the same search-summary-only basis as last
+ * week's Northern Skys entry. Re-run this pass once outbound access is restored — ideally
+ * confirming that restoration with a plain fetch of a known-reachable page (not a campground
+ * domain) before trusting any "still blocked" finding.
+ */
+
+/**
  * Not a campground — the official Wisconsin DNR reservation PLATFORM used across the entire WI
  * state park system (spec section 10's "Wisconsin GoingToCamp system" entry). Kept separate from
  * FAVORITE_CAMPGROUNDS since it has no qualification verdict of its own; individual WI state
@@ -566,6 +585,32 @@ const SIMILAR_CAMPGROUND_DISCOVERY = [
     sources: ['https://www.campspot.com/park/northern-skys-rv-resorts-mille-lacs', 'https://northernskys.com/mille-lacs/', 'https://northernskys.com/about/'],
     notes: 'New discovery, 2026-08-31 pass. This session\'s network policy blocked direct fetch of every candidate site (see note above the FAVORITE_CAMPGROUNDS/SIMILAR_CAMPGROUND_DISCOVERY boundary), so nothing here was independently navigated to — every fact below is from a WebSearch summary, not a direct page load; treat as a lead, not a confirmed fact. Most promising signal: a real, live Campspot online-booking URL and itemized per-tier pricing, closer to this traveler\'s booking-ready pattern than most existing discovery entries. Biggest gaps: waterfront status is only confirmed at the campground level (1,300ft of Lake Mille Lacs shoreline) — which tier, if any, is actually beachfront vs. set back is unconfirmed; sewerHookup is inferred from the "Full Hookup" tier name rather than itemized directly; electric amperage and flush-toilet status are unconfirmed.',
     verifiedAt: RESEARCH_PASS_2026_08_31,
+  }),
+  record({
+    requestedName: null,
+    resolvedName: 'Rice Creek Chain of Lakes Regional Park Campground (Anoka County Parks)',
+    location: 'Centerville / Lino Lakes, MN (Anoka County)',
+    drivingHoursFrom55449: 0.4,
+    officialWebsiteUrl: 'https://www.anokacountyparks.com/parks/rice-creek-chain-of-lakes',
+    officialReservationUrl: 'https://www.anokacountyparks.com/camping',
+    seasonOfOperation: '2026 season: May 8 - September 27 (per WebSearch summary of the official Anoka County Parks camping page; 2026 reservations reported to open March 2).',
+    siteTypes: ['57 total sites across 5 loops + 1 group site (60-person capacity)', 'Loops A, B, D: 50A electric + water, back-in and pull-through', 'Loops E, F: no hookups (rustic)', '2 camper cabins'],
+    waterfrontStatus: WATERFRONT_STATUS.LAKE_ACCESS,
+    waterHookup: HOOKUP.YES,
+    electricHookup: HOOKUP.YES,
+    electricAmperage: AMPERAGE.A50,
+    sewerHookup: HOOKUP.UNKNOWN,
+    bathhouse: { flushToilets: HOOKUP.UNKNOWN, hotColdWater: HOOKUP.UNKNOWN, hotShowers: HOOKUP.YES },
+    nightlyRate: { amount: 32, currency: 'USD', unit: 'night (50A electric + water, Loops A/B/D)', notes: '$20/night rustic (Loops E/F); $32/night 50A electric+water; +$8 non-refundable reservation fee; separate vehicle entry permit required ($5/day or $25/year). Per WebSearch summaries of the official Anoka County Parks camping page, not independently fetched this pass.' },
+    cancellationPolicy: null,
+    confidence: EVIDENCE_CONFIDENCE.LOW,
+    sources: [
+      'https://www.anokacountyparks.com/parks/rice-creek-chain-of-lakes',
+      'https://www.anokacountyparks.com/camping',
+      'https://www.anokacountymn.gov/DocumentCenter/View/1078/Chain-of-Lakes-Campground-Map',
+    ],
+    notes: 'New discovery, 2026-09-07 pass — closest candidate found to the traveler\'s home ZIP (est. ~25 min). This session\'s network egress policy blocked direct fetch of every candidate site this pass too (see the "2026-09-07 weekly re-verification pass" note above the FAVORITE_CAMPGROUNDS/SIMILAR_CAMPGROUND_DISCOVERY boundary), so nothing here was independently navigated to — every fact is from a WebSearch summary, treat as a lead, not a confirmed fact. Most important caveat: one summary explicitly states the park\'s lakefront views (on Centerville Lake) "aren\'t at the campground" and are "primarily available along park trails rather than directly from camping sites" — i.e. likely CONDITIONAL/FAILED on the waterfront requirement despite solid individual water+50A-electric hookups on Loops A/B/D, which is why waterfrontStatus is set to LAKE_ACCESS (non-qualifying) rather than a qualifying status. Bathhouse is a central shower/restroom building between Loops B and D plus porta-potties at other loops per reviews — flush-toilet status at the central building was not itemized as verbatim "flush" in anything fetched, so left UNKNOWN. Sewer hookup was not mentioned in any source surfaced and is left UNKNOWN rather than assumed NO.',
+    verifiedAt: RESEARCH_PASS_2026_09_07,
   }),
 ];
 

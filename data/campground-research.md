@@ -477,3 +477,31 @@ fetch. See its `notes` field in `src/data/favoriteCampgrounds.js` for the full c
 
 **Recommendation:** re-run this pass once outbound access to campground/park/reservation domains
 is restored from this environment.
+
+---
+
+## 2026-09-07 weekly re-verification pass
+
+Same organization egress policy, same result — this pass first confirmed the block is total,
+not a per-domain denylist that might have loosened: direct-fetch attempts against dovr.org,
+www.dnr.state.mn.us, www.campspot.com, www.recreation.gov, en.wikipedia.org, and even
+www.anthropic.com were all rejected by the proxy (`connect_rejected`, gateway 403 on CONNECT),
+and the proxy's own status endpoint reports outbound as non-selective (`"selective": false`)
+with no exception carved out for any of these domains. Only WebSearch's aggregated summaries
+were reachable, which again does not meet this file's evidence bar for upgrading or refreshing
+`verifiedAt` on an existing HIGH/MEDIUM-confidence fact.
+
+**No field on any of the 17 favorites or 5 prior discoveries was changed this pass.**
+
+**One new discovery was added** to `SIMILAR_CAMPGROUND_DISCOVERY`: Rice Creek Chain of Lakes
+Regional Park Campground (Anoka County Parks, Centerville/Lino Lakes, MN) — the closest candidate
+found to the traveler's home ZIP (~25 min), with individual water + 50A-electric hookups on
+Loops A/B/D and a real online reservation system, at LOW confidence since it's sourced from
+WebSearch summaries only. Important caveat surfaced in research: the park's Centerville Lake
+frontage is reported as accessible from trails, not from the campsites themselves, so this is a
+likely waterfront-requirement failure despite the solid hookup facts — see its `notes` field in
+`src/data/favoriteCampgrounds.js` for the full caveat.
+
+**Recommendation:** re-run this pass once outbound access to campground/park/reservation domains
+is restored from this environment — verify restoration against a plain, unrelated page first
+(not a campground domain) before trusting a "still blocked" finding on this list specifically.
