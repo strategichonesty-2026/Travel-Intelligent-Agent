@@ -505,3 +505,33 @@ likely waterfront-requirement failure despite the solid hookup facts — see its
 **Recommendation:** re-run this pass once outbound access to campground/park/reservation domains
 is restored from this environment — verify restoration against a plain, unrelated page first
 (not a campground domain) before trusting a "still blocked" finding on this list specifically.
+
+---
+
+## 2026-09-14 weekly re-verification pass
+
+Outbound access is still totally blocked, for a third consecutive week. Following the standing
+recommendation above, this pass tested restoration against a plain, non-campground page first —
+a direct fetch of `https://example.com/` — before touching any campground domain; it failed with
+the same `EGRESS_BLOCKED` result (proxy CONNECT tunnel rejected, HTTP 403) as subsequent direct
+attempts against `www.washburncountyparks.us` and `www.dnr.state.mn.us`. The proxy's own status
+endpoint again reports non-selective, organization-wide blocking with no exception carved out for
+any of these domains. Only WebSearch's aggregated summaries were reachable, which again does not
+meet this document's evidence bar for upgrading or refreshing `verifiedAt` on an existing
+HIGH/MEDIUM-confidence fact.
+
+**No field on any of the 17 favorites or 6 prior discoveries was changed this pass.**
+
+**One new discovery was added** to `SIMILAR_CAMPGROUND_DISCOVERY`: Baylor Regional Park Campground
+(Carver County Parks, Norwood Young America, MN, on Eagle Lake) — the closest new candidate found
+this pass to the traveler's home ZIP (~1h15m), with 35 of 50 sites reportedly having individual
+water + 30A electric hookups, flush-toilet/shower buildings, and a real official county
+reservation system, at LOW confidence since it's sourced from WebSearch summaries only, not a
+direct fetch. Important caveat: the county's own summaries describe the campground as merely
+"adjacent to" Eagle Lake rather than confirming any individual site as lake-view or waterfront, so
+`waterfrontStatus` is recorded as `LAKE_ACCESS` (non-qualifying) pending a site-map-level check —
+see its `notes` field in `src/data/favoriteCampgrounds.js` for the full caveat.
+
+**Recommendation:** re-run this pass once outbound access to campground/park/reservation domains
+is restored from this environment — verify restoration against a plain, unrelated page first
+(not a campground domain) before trusting a "still blocked" finding on this list specifically.

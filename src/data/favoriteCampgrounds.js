@@ -26,6 +26,9 @@ const RESEARCH_PASS_2026_08_31 = '2026-08-31T00:00:00.000Z';
 // Same reasoning, one week later — see the "2026-09-07 weekly re-verification pass" note below.
 const RESEARCH_PASS_2026_09_07 = '2026-09-07T00:00:00.000Z';
 
+// Same reasoning, one week later still — see the "2026-09-14 weekly re-verification pass" note below.
+const RESEARCH_PASS_2026_09_14 = '2026-09-14T00:00:00.000Z';
+
 function id(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
@@ -467,6 +470,22 @@ const FAVORITE_CAMPGROUNDS = [
  */
 
 /**
+ * 2026-09-14 weekly re-verification pass: outbound access is still totally blocked, for a third
+ * consecutive week. This pass followed the standing recommendation above and tested restoration
+ * against a plain, non-campground page first — a direct fetch of https://example.com/ — before
+ * touching any campground domain; it failed with the same `EGRESS_BLOCKED` / proxy CONNECT 403 as
+ * every campground/park/reservation domain tried afterward (washburncountyparks.us,
+ * dnr.state.mn.us), and the proxy status endpoint again reports non-selective, organization-wide
+ * blocking with no exception for these domains. Only WebSearch's aggregated summaries were
+ * reachable — still not enough to honestly upgrade or bump verifiedAt on any of the 17 favorites
+ * or 6 prior discoveries, so (as in the prior two passes) none of their fields were touched.
+ * One new discovery was added below (Baylor Regional Park, Carver County, MN) at LOW confidence
+ * on the same search-summary-only basis as the two prior weeks' additions.
+ * Re-run this pass once outbound access is restored — confirm restoration against a plain
+ * non-campground page first, exactly as this pass did, before trusting any "still blocked" result.
+ */
+
+/**
  * Not a campground — the official Wisconsin DNR reservation PLATFORM used across the entire WI
  * state park system (spec section 10's "Wisconsin GoingToCamp system" entry). Kept separate from
  * FAVORITE_CAMPGROUNDS since it has no qualification verdict of its own; individual WI state
@@ -611,6 +630,32 @@ const SIMILAR_CAMPGROUND_DISCOVERY = [
     ],
     notes: 'New discovery, 2026-09-07 pass — closest candidate found to the traveler\'s home ZIP (est. ~25 min). This session\'s network egress policy blocked direct fetch of every candidate site this pass too (see the "2026-09-07 weekly re-verification pass" note above the FAVORITE_CAMPGROUNDS/SIMILAR_CAMPGROUND_DISCOVERY boundary), so nothing here was independently navigated to — every fact is from a WebSearch summary, treat as a lead, not a confirmed fact. Most important caveat: one summary explicitly states the park\'s lakefront views (on Centerville Lake) "aren\'t at the campground" and are "primarily available along park trails rather than directly from camping sites" — i.e. likely CONDITIONAL/FAILED on the waterfront requirement despite solid individual water+50A-electric hookups on Loops A/B/D, which is why waterfrontStatus is set to LAKE_ACCESS (non-qualifying) rather than a qualifying status. Bathhouse is a central shower/restroom building between Loops B and D plus porta-potties at other loops per reviews — flush-toilet status at the central building was not itemized as verbatim "flush" in anything fetched, so left UNKNOWN. Sewer hookup was not mentioned in any source surfaced and is left UNKNOWN rather than assumed NO.',
     verifiedAt: RESEARCH_PASS_2026_09_07,
+  }),
+  record({
+    requestedName: null,
+    resolvedName: 'Baylor Regional Park Campground (Carver County Parks)',
+    location: 'Norwood Young America, MN (Carver County), on Eagle Lake',
+    drivingHoursFrom55449: 1.25,
+    officialWebsiteUrl: 'https://www.carvercountymn.gov/departments/public-works/parks-recreation/parks-trails/baylor-regional-park',
+    officialReservationUrl: 'https://www.carvercountymn.gov/departments/public-works/parks-recreation/reservations/camping-at-baylor',
+    seasonOfOperation: 'May 8 - October 10, 2026',
+    siteTypes: ['50 total sites (35 utility sites with water + 30A electric, back-in)', '15 primitive sites', 'group camping area'],
+    waterfrontStatus: WATERFRONT_STATUS.LAKE_ACCESS,
+    waterHookup: HOOKUP.YES,
+    electricHookup: HOOKUP.YES,
+    electricAmperage: AMPERAGE.A30,
+    sewerHookup: HOOKUP.UNKNOWN,
+    bathhouse: { flushToilets: HOOKUP.YES, hotColdWater: HOOKUP.UNKNOWN, hotShowers: HOOKUP.YES },
+    nightlyRate: { amount: null, currency: 'USD', notes: 'County site references a "Fee Schedule for 2026" and a stay-3-nights/4th-night-free promotion, but no dollar figure was surfaced in WebSearch summaries this pass — not independently confirmed.' },
+    cancellationPolicy: null,
+    confidence: EVIDENCE_CONFIDENCE.LOW,
+    sources: [
+      'https://www.carvercountymn.gov/departments/public-works/parks-recreation/parks-trails/baylor-regional-park',
+      'https://www.carvercountymn.gov/departments/public-works/parks-recreation/reservations/camping-at-baylor',
+      'https://www.carvercountymn.gov/Home/Components/FacilityDirectory/FacilityDirectory/17/3625',
+    ],
+    notes: 'New discovery, 2026-09-14 pass. Outbound access was blocked for this candidate too (see the "2026-09-14 weekly re-verification pass" note above the FAVORITE_CAMPGROUNDS/SIMILAR_CAMPGROUND_DISCOVERY boundary), so nothing here was independently navigated to — every fact is from WebSearch summaries of official-looking Carver County pages, treat as a lead, not a confirmed fact. Promising signal: 35 of 50 sites confirmed (via summary) with individual water + 30A electric hookups, a real county reservation system, flush-toilet/shower buildings, and closer to the traveler\'s home ZIP than most existing discoveries (~1.25h). Biggest gap: waterfront status is only "adjacent to a lake" / campground-level per the summaries fetched — no individual site was confirmed lake-view or direct-waterfront, so waterfrontStatus is set to LAKE_ACCESS (non-qualifying) rather than a qualifying status; sewer hookup and nightly rate were not surfaced and are left UNKNOWN rather than assumed.',
+    verifiedAt: RESEARCH_PASS_2026_09_14,
   }),
 ];
 
