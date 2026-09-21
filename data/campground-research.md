@@ -535,3 +535,45 @@ see its `notes` field in `src/data/favoriteCampgrounds.js` for the full caveat.
 **Recommendation:** re-run this pass once outbound access to campground/park/reservation domains
 is restored from this environment — verify restoration against a plain, unrelated page first
 (not a campground domain) before trusting a "still blocked" finding on this list specifically.
+
+---
+
+## 2026-09-21 weekly re-verification pass
+
+Outbound access is still totally blocked, for a fourth consecutive week. Following the standing
+recommendation above, this pass again tested restoration against a plain, non-campground page
+first — a direct fetch of `https://example.com/` — before touching any campground domain; it
+failed with the same `EGRESS_BLOCKED` result as prior weeks. The proxy's own status endpoint again
+reports non-selective, organization-wide blocking (`"selective": false`) with no exception carved
+out for any of these domains. Only WebSearch's aggregated summaries were reachable, which again
+does not meet this document's evidence bar for upgrading or refreshing `verifiedAt` on an existing
+HIGH/MEDIUM-confidence fact.
+
+**No field on any of the 17 favorites or 7 prior discoveries was changed this pass.**
+
+**Three new discoveries were added** to `SIMILAR_CAMPGROUND_DISCOVERY`, all at LOW confidence
+since they're sourced from WebSearch summaries only, not a direct fetch:
+
+- **St. Croix Bluffs Regional Park Campground** (Washington County Parks, Denmark Township, MN,
+  on the St. Croix River) — the closest-in-driving-time find this pass (~1h), and a sister
+  property to the existing Lake Elmo Park Reserve discovery under the same county parks
+  department. 26 of 73 sites (the pull-through tier) have individual water hookups; the other 36
+  are electric-only. Waterfront status is only described at the park level, not confirmed at any
+  individual site, so recorded as `UNKNOWN`.
+- **Fish Lake Resort and Campground** (Mora, MN, on Fish Lake) — the strongest waterfront signal
+  found this pass: a named, individually-numbered "Lakeshore" site tier (#101-108, some with
+  reserved boat docks), similar in specificity to Shell Lake's numbered lakefront tier, plus a
+  direct official reservation page and a live Campspot listing. Sources conflict on electric
+  amperage and sewer hookup, both left `UNKNOWN` pending direct-fetch resolution.
+- **Schroeder County Park & Campground** (Wright County Parks, Annandale, MN, on Cedar Lake) —
+  sandy-beach frontage and a real official/CampLinq-referenced reservation system, but no specific
+  site was confirmed lake-view or waterfront, so `waterfrontStatus` is recorded as `LAKE_ACCESS`
+  (non-qualifying) pending a site-map check.
+
+See each record's `notes` field in `src/data/favoriteCampgrounds.js` for full caveats, including
+the mixed hookup tiers at St. Croix Bluffs and Schroeder, and the source conflicts at Fish Lake
+Resort.
+
+**Recommendation:** re-run this pass once outbound access to campground/park/reservation domains
+is restored from this environment — verify restoration against a plain, unrelated page first
+(not a campground domain) before trusting a "still blocked" finding on this list specifically.

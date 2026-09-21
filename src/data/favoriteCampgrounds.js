@@ -29,6 +29,9 @@ const RESEARCH_PASS_2026_09_07 = '2026-09-07T00:00:00.000Z';
 // Same reasoning, one week later still — see the "2026-09-14 weekly re-verification pass" note below.
 const RESEARCH_PASS_2026_09_14 = '2026-09-14T00:00:00.000Z';
 
+// Same reasoning, one week later still — see the "2026-09-21 weekly re-verification pass" note below.
+const RESEARCH_PASS_2026_09_21 = '2026-09-21T00:00:00.000Z';
+
 function id(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
@@ -486,6 +489,24 @@ const FAVORITE_CAMPGROUNDS = [
  */
 
 /**
+ * 2026-09-21 weekly re-verification pass: outbound access is still totally blocked, for a fourth
+ * consecutive week. This pass again tested restoration against a plain, non-campground page first —
+ * a direct fetch of https://example.com/ — before touching any campground domain; it failed with
+ * the same EGRESS_BLOCKED / proxy-rejected result, and the proxy status endpoint again reports
+ * non-selective, organization-wide blocking ("selective": false) with no exception for these
+ * domains. Only WebSearch's aggregated summaries were reachable — still not enough to honestly
+ * upgrade or bump verifiedAt on any of the 17 favorites or 7 prior discoveries, so (as in the prior
+ * three passes) none of their fields were touched.
+ * Three new discoveries were added below at LOW confidence on the same search-summary-only basis
+ * as the prior three weeks' additions: St. Croix Bluffs Regional Park (Washington County — the
+ * traveler's existing Lake Elmo discovery's sister park), Fish Lake Resort and Campground (Mora,
+ * MN — a private resort with a named, numbered "Lakeshore" site tier), and Schroeder County Park
+ * (Wright County, on Cedar Lake).
+ * Re-run this pass once outbound access is restored — confirm restoration against a plain
+ * non-campground page first, exactly as this pass did, before trusting any "still blocked" result.
+ */
+
+/**
  * Not a campground — the official Wisconsin DNR reservation PLATFORM used across the entire WI
  * state park system (spec section 10's "Wisconsin GoingToCamp system" entry). Kept separate from
  * FAVORITE_CAMPGROUNDS since it has no qualification verdict of its own; individual WI state
@@ -656,6 +677,79 @@ const SIMILAR_CAMPGROUND_DISCOVERY = [
     ],
     notes: 'New discovery, 2026-09-14 pass. Outbound access was blocked for this candidate too (see the "2026-09-14 weekly re-verification pass" note above the FAVORITE_CAMPGROUNDS/SIMILAR_CAMPGROUND_DISCOVERY boundary), so nothing here was independently navigated to — every fact is from WebSearch summaries of official-looking Carver County pages, treat as a lead, not a confirmed fact. Promising signal: 35 of 50 sites confirmed (via summary) with individual water + 30A electric hookups, a real county reservation system, flush-toilet/shower buildings, and closer to the traveler\'s home ZIP than most existing discoveries (~1.25h). Biggest gap: waterfront status is only "adjacent to a lake" / campground-level per the summaries fetched — no individual site was confirmed lake-view or direct-waterfront, so waterfrontStatus is set to LAKE_ACCESS (non-qualifying) rather than a qualifying status; sewer hookup and nightly rate were not surfaced and are left UNKNOWN rather than assumed.',
     verifiedAt: RESEARCH_PASS_2026_09_14,
+  }),
+  record({
+    requestedName: null,
+    resolvedName: 'St. Croix Bluffs Regional Park Campground (Washington County Parks)',
+    location: 'Denmark Township, MN (Washington County), on the St. Croix River',
+    drivingHoursFrom55449: 1,
+    officialWebsiteUrl: 'https://www.washingtoncountymn.gov/facilities/facility/details/St-Croix-Bluffs-Regional-Park-19',
+    officialReservationUrl: 'https://www.washingtoncountymn.gov/1820/Camping-Reservations',
+    seasonOfOperation: '2026 season reported as April 24 - October 17 per one Washington County Parks page (matching sibling park Lake Elmo\'s dates), but another summary instead states "early May to mid-October" — exact open/close dates not reconciled this pass.',
+    siteTypes: ['73 total sites', '26 pull-through sites with water + 20/30/50A electric', '36 back-in sites with 20/30A electric only (no water)'],
+    waterfrontStatus: WATERFRONT_STATUS.UNKNOWN,
+    waterHookup: HOOKUP.YES,
+    electricHookup: HOOKUP.YES,
+    electricAmperage: AMPERAGE.UNKNOWN,
+    sewerHookup: HOOKUP.NO,
+    bathhouse: { flushToilets: HOOKUP.YES, hotColdWater: HOOKUP.UNKNOWN, hotShowers: HOOKUP.YES },
+    confidence: EVIDENCE_CONFIDENCE.LOW,
+    sources: [
+      'https://www.washingtoncountymn.gov/facilities/facility/details/St-Croix-Bluffs-Regional-Park-19',
+      'https://www.washingtoncountymn.gov/1820/Camping-Reservations',
+      'https://thedyrt.com/camping/minnesota/minnesota-st-croix-bluffs-regional-park',
+    ],
+    notes: 'New discovery, 2026-09-21 pass — the closest-in-driving-time sister property to the traveler\'s existing Lake Elmo Park Reserve discovery, run by the same Washington County Parks department (likely the same washcoparks.usedirect.com booking platform used at Lake Elmo, but not independently confirmed this pass). Outbound access was blocked for this candidate too (see the "2026-09-21 weekly re-verification pass" note above the FAVORITE_CAMPGROUNDS/SIMILAR_CAMPGROUND_DISCOVERY boundary), so nothing here was independently navigated to — every fact is from WebSearch summaries, treat as a lead, not a confirmed fact. Only 26 of 73 sites (the pull-through tier) have an individual water hookup; the other 36 (back-in tier) are electric-only, so waterHookup=YES applies only to that pull-through subset and any specific site must be checked before booking. Waterfront status is only described at the park level ("579-acre park... on the St. Croix River," "direct water access") with no individual site confirmed lake-view/waterfront, so left UNKNOWN rather than assumed either way — needs a site-map-level check.',
+    verifiedAt: RESEARCH_PASS_2026_09_21,
+  }),
+  record({
+    requestedName: null,
+    resolvedName: 'Fish Lake Resort and Campground',
+    location: 'Mora, MN (Kanabec County), on Fish Lake',
+    drivingHoursFrom55449: 1.25,
+    officialWebsiteUrl: 'https://www.fishlakeresort.co/',
+    officialReservationUrl: 'https://www.fishlakeresort.co/reservations',
+    siteTypes: ['Lakeshore water/electric RV sites #101-108 (some with reserved boat docks)', 'standard water/electric RV sites up to 42ft', 'hillside/lagoon sites', 'rustic cabins'],
+    waterfrontStatus: WATERFRONT_STATUS.DIRECT_WATERFRONT,
+    waterHookup: HOOKUP.YES,
+    electricHookup: HOOKUP.YES,
+    electricAmperage: AMPERAGE.UNKNOWN,
+    sewerHookup: HOOKUP.UNKNOWN,
+    bathhouse: { flushToilets: HOOKUP.UNKNOWN, hotColdWater: HOOKUP.UNKNOWN, hotShowers: HOOKUP.YES },
+    confidence: EVIDENCE_CONFIDENCE.LOW,
+    sources: [
+      'https://www.fishlakeresort.co/',
+      'https://www.fishlakeresort.co/reservations',
+      'https://www.campspot.com/park/fish-lake-resort-and-campground',
+      'https://www.rvezy.com/rv-rentals/campground/fish-lake-resort-and-campground',
+    ],
+    notes: 'New discovery, 2026-09-21 pass — the strongest waterfront signal of this week\'s three finds: a named, individually-numbered "Lakeshore" site tier (#101-108, some with reserved boat docks), similar in specificity to Shell Lake\'s numbered lakefront tier, plus both a direct official reservation page and a live Campspot listing (a real booking-ready pattern). Outbound access was blocked this pass too (see the "2026-09-21 weekly re-verification pass" note above the FAVORITE_CAMPGROUNDS/SIMILAR_CAMPGROUND_DISCOVERY boundary), so nothing here was independently navigated to — every fact is from WebSearch/aggregator summaries, treat as a lead, not a confirmed fact. Sources conflict on amperage (one review states all sites are 30A+water, another describes standard sites up to 50A) and on sewer (one generic listing claims full hookups including sewer, one review states "no septic hookups but a dump available") — both left UNKNOWN pending a direct fetch to resolve the conflict rather than guessing which source is current.',
+    verifiedAt: RESEARCH_PASS_2026_09_21,
+  }),
+  record({
+    requestedName: null,
+    resolvedName: 'Schroeder County Park & Campground (Wright County Parks)',
+    location: 'Annandale, MN (Wright County), on Cedar Lake',
+    drivingHoursFrom55449: 1.75,
+    officialWebsiteUrl: 'https://www.wrightcountymn.gov/facilities/facility/details/Schroeder-County-Park-Campground-11',
+    officialReservationUrl: 'https://mnwrightcountyweb.myvscloud.com/webtrac/web/siterentals.html?Location=Schroeder+County+Park',
+    seasonOfOperation: null,
+    siteTypes: ['50 total sites', 'sites with electric + water hookup', 'sites with electric-only hookup'],
+    waterfrontStatus: WATERFRONT_STATUS.LAKE_ACCESS,
+    waterHookup: HOOKUP.YES,
+    electricHookup: HOOKUP.YES,
+    electricAmperage: AMPERAGE.UNKNOWN,
+    sewerHookup: HOOKUP.UNKNOWN,
+    bathhouse: { flushToilets: HOOKUP.UNKNOWN, hotColdWater: HOOKUP.UNKNOWN, hotShowers: HOOKUP.YES },
+    nightlyRate: { amount: 27.5, currency: 'USD', unit: 'night (electric site, Wright County resident rate)', notes: '$27.50/night resident / $30/night non-resident (electric); $18.50/$20 non-electric; +$6 non-refundable reservation fee. Per WebSearch summary of the official Wright County Parks page, not independently fetched this pass.' },
+    confidence: EVIDENCE_CONFIDENCE.LOW,
+    sources: [
+      'https://www.wrightcountymn.gov/facilities/facility/details/Schroeder-County-Park-Campground-11',
+      'https://mnwrightcountyweb.myvscloud.com/webtrac/web/siterentals.html?Location=Schroeder+County+Park',
+      'https://www.wrightcountymn.gov/m/newsflash/home/detail/5058',
+    ],
+    notes: 'New discovery, 2026-09-21 pass. Outbound access was blocked this pass too (see the "2026-09-21 weekly re-verification pass" note above the FAVORITE_CAMPGROUNDS/SIMILAR_CAMPGROUND_DISCOVERY boundary), so nothing here was independently navigated to — every fact is from WebSearch summaries, treat as a lead, not a confirmed fact. One search result referenced a "CampLinq"-branded booking page (camplinq.com/camps/schroeder-county-park/) while another pointed to a Wright County myvscloud/WebTrac page for the same campground — both may be real (a listing aggregator plus the actual county system) but this was not reconciled, so confirm the correct live URL before surfacing it as bookable. Sandy-beach frontage and near-water siting are described at the campground level ("sites sit close to the water," direct access to a fishing pier), but no specific site number was confirmed lake-view or direct-waterfront, so waterfrontStatus is set to LAKE_ACCESS (non-qualifying) pending a site-map check. Roughly half the campground appears to be electric-only (not water+electric); waterHookup=YES applies only to the water-equipped subset, not confirmed which site numbers.',
+    verifiedAt: RESEARCH_PASS_2026_09_21,
   }),
 ];
 
