@@ -577,3 +577,41 @@ Resort.
 **Recommendation:** re-run this pass once outbound access to campground/park/reservation domains
 is restored from this environment — verify restoration against a plain, unrelated page first
 (not a campground domain) before trusting a "still blocked" finding on this list specifically.
+
+---
+
+## 2026-09-28 weekly re-verification pass
+
+Outbound access is still totally blocked, for a fifth consecutive week. Following the standing
+recommendation above, this pass again tested restoration against a plain, non-campground page
+first — a direct fetch of `https://example.com/`, tried via both `curl` and the `WebFetch` tool —
+before touching any campground domain; both failed with the same `EGRESS_BLOCKED` / proxy CONNECT
+403 result as every prior week. The proxy's own status endpoint again reports non-selective,
+organization-wide blocking (`"selective": false`) with no exception carved out for any of these
+domains, and no recent relay failures were logged (consistent with this being a standing policy,
+not a transient outage). Only WebSearch's aggregated summaries were reachable, which again does not
+meet this document's evidence bar for upgrading or refreshing `verifiedAt` on an existing
+HIGH/MEDIUM-confidence fact.
+
+**No field on any of the 17 favorites or 10 prior discoveries was changed this pass.**
+
+**Two new discoveries were added** to `SIMILAR_CAMPGROUND_DISCOVERY`, both at LOW confidence since
+they're sourced from WebSearch summaries only, not a direct fetch:
+
+- **Floodwood Municipal Campground** (City of Floodwood, MN, St. Louis County, on the St. Louis
+  River) — every site reportedly has water + electric hookup (recently renovated pads/pedestals),
+  plus a real CampLinq online-booking platform. River frontage is described at the campground
+  level (a shared dock for river access) rather than confirmed per individual site, so
+  `waterfrontStatus` is recorded as `LAKE_ACCESS` (non-qualifying) pending a site-map check.
+- **Lake Ahquabi State Park Campground** (Iowa DNR, Indianola, IA, Warren County, on Lake Ahquabi)
+  — 52 of ~96 lakeshore sites reported as true full hookup (water + sewer + electric) on a
+  reservable, 100%-online ReserveAmerica system. At the edge of the traveler's 5-hour driving
+  radius (~4.5h estimate). Sites are described only as "along the lakeshore" at the campground
+  level, not confirmed waterfront at any specific site number, so `waterfrontStatus` is likewise
+  recorded as `LAKE_ACCESS` (non-qualifying).
+
+See each record's `notes` field in `src/data/favoriteCampgrounds.js` for full caveats.
+
+**Recommendation:** re-run this pass once outbound access to campground/park/reservation domains
+is restored from this environment — verify restoration against a plain, unrelated page first
+(not a campground domain) before trusting a "still blocked" finding on this list specifically.

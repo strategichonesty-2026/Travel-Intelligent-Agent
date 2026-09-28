@@ -32,6 +32,9 @@ const RESEARCH_PASS_2026_09_14 = '2026-09-14T00:00:00.000Z';
 // Same reasoning, one week later still — see the "2026-09-21 weekly re-verification pass" note below.
 const RESEARCH_PASS_2026_09_21 = '2026-09-21T00:00:00.000Z';
 
+// Same reasoning, one week later still — see the "2026-09-28 weekly re-verification pass" note below.
+const RESEARCH_PASS_2026_09_28 = '2026-09-28T00:00:00.000Z';
+
 function id(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
@@ -507,6 +510,25 @@ const FAVORITE_CAMPGROUNDS = [
  */
 
 /**
+ * 2026-09-28 weekly re-verification pass: outbound access is still totally blocked, for a fifth
+ * consecutive week. This pass again tested restoration against a plain, non-campground page first —
+ * a direct fetch of https://example.com/ via both curl and WebFetch — before touching any campground
+ * domain; both failed with the same EGRESS_BLOCKED / proxy CONNECT 403 result as every prior week,
+ * and the proxy status endpoint again reports non-selective, organization-wide blocking
+ * ("selective": false) with no exception for these domains. Only WebSearch's aggregated summaries
+ * were reachable — still not enough to honestly upgrade or bump verifiedAt on any of the 17
+ * favorites or 10 prior discoveries, so (as in the prior four passes) none of their fields were
+ * touched this pass.
+ * Two new discoveries were added below at LOW confidence on the same search-summary-only basis as
+ * the prior four weeks' additions: Floodwood Municipal Campground (St. Louis County, MN — every
+ * site has water + electric per the city's own page, though river-frontage is campground-level, not
+ * confirmed per-site) and Lake Ahquabi State Park (Warren County, IA — 52 of ~96 lakeshore sites
+ * reported as full hookup, at the edge of the traveler's 5-hour radius).
+ * Re-run this pass once outbound access is restored — confirm restoration against a plain
+ * non-campground page first, exactly as this pass did, before trusting any "still blocked" result.
+ */
+
+/**
  * Not a campground — the official Wisconsin DNR reservation PLATFORM used across the entire WI
  * state park system (spec section 10's "Wisconsin GoingToCamp system" entry). Kept separate from
  * FAVORITE_CAMPGROUNDS since it has no qualification verdict of its own; individual WI state
@@ -750,6 +772,58 @@ const SIMILAR_CAMPGROUND_DISCOVERY = [
     ],
     notes: 'New discovery, 2026-09-21 pass. Outbound access was blocked this pass too (see the "2026-09-21 weekly re-verification pass" note above the FAVORITE_CAMPGROUNDS/SIMILAR_CAMPGROUND_DISCOVERY boundary), so nothing here was independently navigated to — every fact is from WebSearch summaries, treat as a lead, not a confirmed fact. One search result referenced a "CampLinq"-branded booking page (camplinq.com/camps/schroeder-county-park/) while another pointed to a Wright County myvscloud/WebTrac page for the same campground — both may be real (a listing aggregator plus the actual county system) but this was not reconciled, so confirm the correct live URL before surfacing it as bookable. Sandy-beach frontage and near-water siting are described at the campground level ("sites sit close to the water," direct access to a fishing pier), but no specific site number was confirmed lake-view or direct-waterfront, so waterfrontStatus is set to LAKE_ACCESS (non-qualifying) pending a site-map check. Roughly half the campground appears to be electric-only (not water+electric); waterHookup=YES applies only to the water-equipped subset, not confirmed which site numbers.',
     verifiedAt: RESEARCH_PASS_2026_09_21,
+  }),
+  record({
+    requestedName: null,
+    resolvedName: 'Floodwood Municipal Campground (City of Floodwood, MN)',
+    location: 'Floodwood, MN (St. Louis County), on the St. Louis River',
+    drivingHoursFrom55449: 2.75,
+    officialWebsiteUrl: 'https://floodwoodmn.gov/municipal-campground',
+    officialReservationUrl: 'https://camplinq.com/camps/floodwood-campground/',
+    seasonOfOperation: 'Early May - late September',
+    siteTypes: ['RV and tent sites, all with water + electric hookup'],
+    waterfrontStatus: WATERFRONT_STATUS.LAKE_ACCESS,
+    waterHookup: HOOKUP.YES,
+    electricHookup: HOOKUP.YES,
+    electricAmperage: AMPERAGE.UNKNOWN,
+    sewerHookup: HOOKUP.NO,
+    bathhouse: { flushToilets: HOOKUP.UNKNOWN, hotColdWater: HOOKUP.UNKNOWN, hotShowers: HOOKUP.YES },
+    nightlyRate: { amount: 20, currency: 'USD', unit: 'night (tent, per one summary)', notes: '$20/night cited for tent camping in one summary; RV/hookup-site rate not itemized separately in anything surfaced this pass — not independently confirmed.' },
+    cancellationPolicy: null,
+    confidence: EVIDENCE_CONFIDENCE.LOW,
+    sources: [
+      'https://floodwoodmn.gov/municipal-campground',
+      'https://camplinq.com/camps/floodwood-campground/',
+      'https://thedyrt.com/camping/minnesota/minnesota-floodwood-municipal-campground',
+    ],
+    notes: 'New discovery, 2026-09-28 pass. Outbound access was blocked this pass too (see the "2026-09-28 weekly re-verification pass" note above the FAVORITE_CAMPGROUNDS/SIMILAR_CAMPGROUND_DISCOVERY boundary), so nothing here was independently navigated to — every fact is from WebSearch summaries, treat as a lead, not a confirmed fact. Strongest signal: multiple independent summaries agree every site has both water and electric hookup (recently renovated pads/pedestals) and a real CampLinq online-booking platform exists, closer to this traveler\'s booking-ready pattern than most existing discovery entries. Biggest gap: the campground "sits on the banks of the St. Louis River" with a shared dock for river access, but no individual site was confirmed riverfront/river-view, so waterfrontStatus is set to LAKE_ACCESS (non-qualifying) rather than assumed DIRECT_WATERFRONT. Sewer is a shared dump station, not per-site, per the same summaries. Electric amperage, bathhouse flush-toilet status, and an itemized hookup-site nightly rate were not surfaced and are left UNKNOWN/unconfirmed rather than assumed.',
+    verifiedAt: RESEARCH_PASS_2026_09_28,
+  }),
+  record({
+    requestedName: null,
+    resolvedName: 'Lake Ahquabi State Park Campground (Iowa DNR)',
+    location: 'Indianola, IA (Warren County), on Lake Ahquabi',
+    drivingHoursFrom55449: 4.5,
+    officialWebsiteUrl: 'https://www.iowadnr.gov/places-go/state-parks/all-parks/lake-ahquabi-state-park',
+    officialReservationUrl: 'https://iowastateparks.reserveamerica.com/camping/lake-ahquabi-state-park/r/campgroundDetails.do?parkId=610149&contractCode=IA',
+    seasonOfOperation: 'Reservations accepted March - November (per WebSearch summary of the official reservation system; not independently confirmed via direct fetch).',
+    siteTypes: ['~96 lakeshore sites: 52 full hookup (water/sewer/20-30-50A electric), 41 electric-only'],
+    waterfrontStatus: WATERFRONT_STATUS.LAKE_ACCESS,
+    waterHookup: HOOKUP.YES,
+    electricHookup: HOOKUP.YES,
+    electricAmperage: AMPERAGE.UNKNOWN,
+    sewerHookup: HOOKUP.YES,
+    bathhouse: { flushToilets: HOOKUP.UNKNOWN, hotColdWater: HOOKUP.UNKNOWN, hotShowers: HOOKUP.UNKNOWN },
+    nightlyRate: { amount: null, currency: 'USD', notes: 'No dollar figure surfaced in WebSearch summaries this pass — not independently confirmed.' },
+    cancellationPolicy: null,
+    confidence: EVIDENCE_CONFIDENCE.LOW,
+    sources: [
+      'https://www.iowadnr.gov/places-go/state-parks/all-parks/lake-ahquabi-state-park',
+      'https://iowastateparks.reserveamerica.com/camping/lake-ahquabi-state-park/r/campgroundDetails.do?parkId=610149&contractCode=IA',
+      'https://thedyrt.com/camping/iowa/iowa-lake-ahquabi-state-park',
+    ],
+    notes: 'New discovery, 2026-09-28 pass — at the edge of the traveler\'s stated 0-5 hour driving radius (~4.5h estimate; unlike the rest of this file, not pulled from a routing API). Outbound access was blocked this pass too (see the "2026-09-28 weekly re-verification pass" note above the FAVORITE_CAMPGROUNDS/SIMILAR_CAMPGROUND_DISCOVERY boundary), so nothing here was independently navigated to — every fact is from WebSearch summaries, treat as a lead, not a confirmed fact. Strongest signal of this pass\'s two finds: 52 of ~96 sites reported as true full-hookup (water + sewer + electric) on a reservable, 100%-online-booking official ReserveAmerica system, similar in strength to Elk Rock\'s equestrian sites already in this list. Biggest gap: sites are described only as "along the lakeshore" / "on or near the water" at the campground level — no individual site number was confirmed directly waterfront or lake-view, so waterfrontStatus is set to LAKE_ACCESS (non-qualifying) pending a site-map check, consistent with how this file treats every other "near the water" claim that stops short of a numbered lakefront tier (e.g. Shell Lake\'s confirmed #1-12). Electric amperage, bathhouse type, and nightly rate were not surfaced and are left UNKNOWN/unconfirmed rather than assumed.',
+    verifiedAt: RESEARCH_PASS_2026_09_28,
   }),
 ];
 
