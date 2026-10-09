@@ -37,6 +37,15 @@ and testable without paid/gated vendor credentials:
 - **Favorite Campground List** (spec §10) — seeded with the traveler's 14 named
   properties in `src/data/favoriteCampgrounds.js`, each defaulted to `UNKNOWN` until
   backed by a sourced research pass (see `data/campground-research.md`).
+- **Flexible Getaway Finder** (added 2026-10-09) — short, driving-distance getaways
+  across RV rentals, campsites, cabins/vacation rentals, and farm stays. No
+  destination required, same as automatic discovery above. Every candidate is an
+  honest deep link (`site:provider.com ...` search) unless Recreation.gov (RIDB) is
+  configured, in which case real federal campground facilities are included at
+  `CHECK_AVAILABILITY`. An RV rental + campsite pair gets a combined
+  `CONFIRMED` / `PARTIALLY_CONFIRMED` / `MANUAL_COORDINATION` status. See
+  TECH_DECISION.md's "Flexible Getaway Finder" entry for the full provider research.
+  `src/services/getawayService.js`, `POST /getaways`.
 
 ### Not yet implemented (requires credentials this codebase can't self-provision)
 
@@ -72,6 +81,7 @@ npm run lint
 | GET | `/campgrounds/favorites/ranked` | Value-ranked with BEST VALUE / BEST FACILITIES / BEST CLOSE-TO-HOME labels |
 | GET | `/campgrounds/favorites/:id` | Single campground with qualification detail |
 | GET | `/campgrounds/favorites/:id/booking` | Booking status, link validation, price disclaimer |
+| POST | `/getaways` | Flexible Getaway Finder — `{ startDate, endDate?, locationQuery?, stayTypes?: ('RV_RENTAL'\|'CAMPSITE'\|'VACATION_RENTAL'\|'FARM_STAY')[], budget?, travelTime?, maxDriveHours? }` |
 | GET | `/scoring/weights` | Default trip and camping scoring weights |
 | POST | `/scoring/preview` | Preview a weighted score with custom weights |
 

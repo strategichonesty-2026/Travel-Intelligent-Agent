@@ -5,6 +5,7 @@ const campgroundsRouter = require('./routes/campgrounds');
 const scoringRouter = require('./routes/scoring');
 const dashboardRouter = require('./routes/dashboard');
 const profileRouter = require('./routes/profile');
+const getawaysRouter = require('./routes/getaways');
 
 function createApp() {
   const app = express();
@@ -24,6 +25,7 @@ function createApp() {
   app.use('/campgrounds', campgroundsRouter);
   app.use('/scoring', scoringRouter);
   app.use('/api/profile', profileRouter);
+  app.use('/getaways', getawaysRouter);
 
   // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, next) => {

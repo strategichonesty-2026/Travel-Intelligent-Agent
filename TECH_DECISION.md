@@ -278,3 +278,109 @@ Strategic Honesty business logic
         v
   Google Places API (New) (places.googleapis.com)
 ```
+
+---
+
+## Flexible Getaway Finder (2026-10-09)
+
+**Date:** 2026-10-09
+
+### Why this feature exists
+
+User request: extend trip discovery beyond flyable destinations to short, driving-distance
+getaways — RV rental delivered to a campsite, private lakefront/riverfront campsites, lake
+cabins, farmhouses, working farm stays, rural homesteads. Explicit Stage 1 instruction: research
+actual data access for every named provider before writing code, and never present a search link
+as verified availability.
+
+### Repos/libraries evaluated
+
+| Candidate | License | Access | Decision |
+|-----------|---------|--------|----------|
+| Recreation.gov RIDB | Official US government API, free, self-service key (already integrated — `src/adapters/recreationGov/ridbAdapter.js`) | Facility/campsite metadata only; no third-party date-specific booking-calendar endpoint found | **Reused as-is** — the one source with live, official, government data; `getawayService.js` folds its results in as `CHECK_AVAILABILITY`, never `BOOKING_READY`, since RIDB doesn't expose real-time per-date availability |
+| Outdoorsy Trailblazer Partner API | Vendor SaaS, real documented REST API (public Swagger specs at `search.outdoorsy.com`/`api.outdoorsy.com`) | Partner-approval gated; free to apply, not guaranteed, not a self-service signup | **Accepted as adapter target, not implemented** — `src/adapters/outdoorsy/outdoorsyAdapter.js` stubbed with an `isConfigured()` gate on `ODC_PARTNER_ID` (the real attribution param name from Outdoorsy's own deep-link docs). Deliberately not writing speculative request/response logic against an unverified (partner-docs-only) shape — same reasoning as RIDB/NPS being stubbed until their keys existed, except those two had fully public specs to implement against and this one doesn't yet |
+| RVshare | Vendor SaaS, affiliate program only (Tune-hosted) | No search/availability API for third parties | **Rejected for live integration** — deep-link only |
+| RVezy | — | No public program found | **Rejected for live integration** — deep-link only |
+| Hipcamp | Vendor SaaS | No public API; partner integrations (Cloudbeds etc.) are for campground owners' own booking widgets, not third-party search | **Rejected for live integration** — deep-link only |
+| Campspot | Vendor SaaS, has an API | Gated to a campground embedding its own booking widget — not usable for cross-campground search from outside | **Rejected for live integration** — deep-link only |
+| KOA | — | No public API (own internal K2 reservation system) | **Rejected for live integration** — deep-link only |
+| Airbnb | — | No public API in 2026; official access requires an org-level partner program (NDA, security review); ToS explicitly bans scraping | **Rejected for live integration** — deep-link only |
+| Vrbo (Expedia Partner Solutions) | Vendor SaaS | Two gated tiers: full content+rates (heavily gated) or a lower-barrier "link-off" redirect (still needs approval + contracting with EPS/Vrbo/Partnerize) | **Accepted as adapter target, not implemented** — `src/adapters/vrboLinkOff/vrboLinkOffAdapter.js` stubbed with an `isConfigured()` gate on `VRBO_PARTNERIZE_ID`; the real redirect URL template is issued during Partnerize onboarding, not publicly documented, so `buildLinkOffUrl()` returns `null` until then rather than guessing the format |
+| Harvest Hosts | — | No public API; one consumer integration (RV LIFE Trip Wizard) is route-planning only, not booking | **Rejected for live integration** — deep-link only |
+| Farm Stay U.S. | — | Small, dated directory site, no API | **Rejected for live integration** — deep-link only |
+
+### Why accepted/rejected
+
+Every provider above was checked directly (official docs, robots.txt/ToS where relevant, or a
+direct search for a developer portal) rather than assumed — the same discipline the sibling
+`home-hunting-agent` project applied to its own land-listing-source research the same week, and
+the two efforts turned up an almost identical pattern: one clean government-API win
+(Recreation.gov here, NHD/PAD-US/FEMA there), two providers with a real partner-gated API worth
+applying to (Outdoorsy, Vrbo), and everything else deep-link-only because no sanctioned
+programmatic access exists for an independent developer. Scraping was not considered for any of
+these, consistent with the project's standing rule against it.
+
+### Adapter architecture
+
+```
+Strategic Honesty business logic
+  src/domain/getawayDiscovery.js      (pure: builds deep-link candidates per requested stay type)
+  src/domain/bookingStatus.js         (extended: combineRvAndSiteStatus() — CONFIRMED /
+                                        PARTIALLY_CONFIRMED / MANUAL_COORDINATION tri-state for
+                                        an RV+campsite pair, reusing the existing BOOKING_STATUS
+                                        enum rather than inventing a parallel one)
+  src/domain/bookingOrder.js          (extended: RV_RENTAL added to DEFAULT_BOOKING_ORDER)
+  src/data/getawayStaySources.js      (the 9 deep-link sources + link-building; site-scoped
+                                        Google search per source, same reasoning as
+                                        home-hunting-agent's EXTERNAL_LISTING_SOURCES — guessing
+                                        a site's own internal search-URL parameters risks a
+                                        broken or silently wrong link)
+        |
+        v
+  src/services/getawayService.js      (orchestrates: deep-link candidates + live RIDB results +
+                                        budget/drive-time classification + combo status)
+        |
+        v
+  src/adapters/recreationGov/ridbAdapter.js   (already live — reused unchanged)
+  src/adapters/outdoorsy/outdoorsyAdapter.js  (Phase 2 — isConfigured() gate, stubbed pending
+                                                partner approval)
+  src/adapters/vrboLinkOff/vrboLinkOffAdapter.js  (Phase 3 — same pattern, pending approval)
+```
+
+`POST /getaways` (`src/routes/getaways.js`) is additive — it does not touch the existing
+`/recommendations` flight/hotel discovery flow, since that's a genuinely different shape of
+problem (flyable regional destinations vs. nearby driving-distance stays).
+
+### License compatibility
+
+No new npm dependencies. No copyleft/GPL/AGPL concerns.
+
+### Maintenance status
+
+Recreation.gov RIDB: official, actively operated government API (already evaluated in the
+Phase-0 entry above). Outdoorsy and Vrbo/EPS: active vendor platforms with live, documented
+partner programs — the gate is approval, not platform health.
+
+### Security considerations
+
+- `ODC_PARTNER_ID`/`VRBO_PARTNERIZE_ID` follow the same pattern as every other credential in this
+  codebase: environment-variable only, git-ignored via `.env`, `isConfigured()` fails closed.
+- Neither new adapter fabricates a request/response shape it hasn't verified against real,
+  accessible documentation — both stay at `configured: false` (Outdoorsy) or return `null`
+  (Vrbo's `buildLinkOffUrl()`) even once their env var is set, until the real API contract can
+  actually be read.
+- No deep link is built by guessing a provider's internal search-URL scheme; every one uses the
+  site-scoped Google search pattern instead.
+
+### Follow-up needed (not yet done)
+
+- Apply for Outdoorsy partner access at developers.outdoorsy.com (user action — business
+  application, not a self-service signup this codebase can complete).
+- Pursue Vrbo link-off approval via Expedia Partner Solutions, if wanted (user action, requires
+  contracting).
+- Sign up for `RIDB_API_KEY` (free, self-service, already supported by this codebase —
+  `.env.example` has the signup link) to light up live campground data in `/getaways` today; it's
+  the one source here that doesn't need any approval process at all.
+- Once either partner program is approved, implement the real request logic in
+  `outdoorsyAdapter.js`/`vrboLinkOffAdapter.js` against the now-accessible docs, the same way
+  `ridbAdapter.js`/`npsAdapter.js` were implemented once their specs were confirmed public.

@@ -1,6 +1,8 @@
 const DEFAULT_BOOKING_ORDER = Object.freeze([
   'FLIGHT',
   'HOTEL_OR_CAMPGROUND',
+  'RV_RENTAL', // Flexible Getaway Finder (2026-10-09) — RV delivery is its own booking, often
+  // with a narrower cancellation/change window than the campsite reservation it has to match
   'RENTAL_CAR_OR_TRANSPORTATION',
   'NATIONAL_PARK_RESERVATION',
   'TIMED_ENTRY_PERMIT',

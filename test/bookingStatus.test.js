@@ -2,10 +2,12 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   BOOKING_STATUS,
+  COMBO_STATUS,
   validateBookingLink,
   determineButtonLabel,
   determineBookingStatus,
   formatPriceDisclaimer,
+  combineRvAndSiteStatus,
 } = require('../src/domain/bookingStatus');
 
 const passingLink = {
@@ -69,4 +71,18 @@ test('formatPriceDisclaimer always includes the checkout-price caveat', () => {
   const msg = formatPriceDisclaimer('2026-08-23T00:00:00.000Z');
   assert.match(msg, /Price verified at/);
   assert.match(msg, /confirmed by the booking provider at checkout/);
+});
+
+test('combineRvAndSiteStatus is CONFIRMED only when both legs are independently ready', () => {
+  assert.equal(combineRvAndSiteStatus(BOOKING_STATUS.BOOKING_READY, BOOKING_STATUS.BOOKING_READY), COMBO_STATUS.CONFIRMED);
+  assert.equal(combineRvAndSiteStatus(BOOKING_STATUS.BOOKED, BOOKING_STATUS.BOOKING_READY), COMBO_STATUS.CONFIRMED);
+});
+
+test('combineRvAndSiteStatus is PARTIALLY_CONFIRMED when only one leg has an actionable link', () => {
+  assert.equal(combineRvAndSiteStatus(BOOKING_STATUS.CHECK_AVAILABILITY, BOOKING_STATUS.RESEARCH_ONLY), COMBO_STATUS.PARTIALLY_CONFIRMED);
+  assert.equal(combineRvAndSiteStatus(BOOKING_STATUS.RESEARCH_ONLY, BOOKING_STATUS.BOOKING_READY), COMBO_STATUS.PARTIALLY_CONFIRMED);
+});
+
+test('combineRvAndSiteStatus is MANUAL_COORDINATION when neither leg has a live link (today\'s default)', () => {
+  assert.equal(combineRvAndSiteStatus(BOOKING_STATUS.RESEARCH_ONLY, BOOKING_STATUS.RESEARCH_ONLY), COMBO_STATUS.MANUAL_COORDINATION);
 });

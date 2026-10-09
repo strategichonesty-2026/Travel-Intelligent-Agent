@@ -342,6 +342,60 @@ test('PUT /api/profile rejects an inconsistent budget rather than silently accep
   }
 });
 
+test('POST /getaways requires a startDate', async () => {
+  const app = createApp();
+  const server = app.listen(0);
+  const { port } = server.address();
+
+  try {
+    const res = await fetch(`http://localhost:${port}/getaways`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    assert.equal(res.status, 400);
+  } finally {
+    server.close();
+  }
+});
+
+test('POST /getaways rejects an unknown stayTypes value', async () => {
+  const app = createApp();
+  const server = app.listen(0);
+  const { port } = server.address();
+
+  try {
+    const res = await fetch(`http://localhost:${port}/getaways`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ startDate: '2026-11-01', stayTypes: ['HOT_AIR_BALLOON'] }),
+    });
+    assert.equal(res.status, 400);
+  } finally {
+    server.close();
+  }
+});
+
+test('POST /getaways returns deep-link candidates across every stay type by default', async () => {
+  const app = createApp();
+  const server = app.listen(0);
+  const { port } = server.address();
+
+  try {
+    const res = await fetch(`http://localhost:${port}/getaways`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ startDate: '2026-11-01', locationQuery: 'Minnesota' }),
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.ok(body.count > 0);
+    assert.ok(body.candidates.every((c) => c.bookingStatus === 'RESEARCH_ONLY' || c.sourceId === 'recreation-gov'));
+  } finally {
+    server.close();
+  }
+});
+
 test('GET /scoring/weights returns default trip and camping weights', async () => {
   const app = createApp();
   const server = app.listen(0);

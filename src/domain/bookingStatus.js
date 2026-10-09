@@ -87,12 +87,54 @@ function formatPriceDisclaimer(verifiedAtIso) {
   return `Price verified at ${ts}. Final price is confirmed by the booking provider at checkout.`;
 }
 
+const COMBO_STATUS = Object.freeze({
+  CONFIRMED: 'CONFIRMED',
+  PARTIALLY_CONFIRMED: 'PARTIALLY_CONFIRMED',
+  MANUAL_COORDINATION: 'MANUAL_COORDINATION',
+});
+
+const COMBO_STATUS_LABEL = Object.freeze({
+  [COMBO_STATUS.CONFIRMED]: 'Confirmed',
+  [COMBO_STATUS.PARTIALLY_CONFIRMED]: 'Partially confirmed',
+  [COMBO_STATUS.MANUAL_COORDINATION]: 'Requires manual coordination',
+});
+
+const READY_STATUSES = [BOOKING_STATUS.BOOKING_READY, BOOKING_STATUS.BOOKED];
+const ACTIONABLE_STATUSES = [...READY_STATUSES, BOOKING_STATUS.CHECK_AVAILABILITY, BOOKING_STATUS.MONITOR];
+
+/**
+ * Flexible Getaway Finder (spec deliverable E, 2026-10-09): an RV rental and a campsite are two
+ * independent bookings that have to land on the same dates to actually work as a trip. Neither
+ * leg's own BOOKING_STATUS captures that pairing, so this combines the two into one honest
+ * tri-state rather than letting the UI imply a matched combo when it's really two unrelated
+ * research-only links.
+ *
+ * CONFIRMED only when both legs are independently ready/booked — a live link alone isn't enough;
+ * PARTIALLY_CONFIRMED when exactly one leg has a real actionable link; MANUAL_COORDINATION when
+ * neither does (today's default for every source in getawayStaySources.js, since none of them
+ * offer live availability this codebase can call — see TECH_DECISION.md).
+ */
+function combineRvAndSiteStatus(rvStatus, siteStatus) {
+  const rvReady = READY_STATUSES.includes(rvStatus);
+  const siteReady = READY_STATUSES.includes(siteStatus);
+  if (rvReady && siteReady) return COMBO_STATUS.CONFIRMED;
+
+  const rvActionable = ACTIONABLE_STATUSES.includes(rvStatus);
+  const siteActionable = ACTIONABLE_STATUSES.includes(siteStatus);
+  if (rvActionable || siteActionable) return COMBO_STATUS.PARTIALLY_CONFIRMED;
+
+  return COMBO_STATUS.MANUAL_COORDINATION;
+}
+
 module.exports = {
   BOOKING_STATUS,
   LINK_TYPE,
   BUTTON_LABEL,
+  COMBO_STATUS,
+  COMBO_STATUS_LABEL,
   validateBookingLink,
   determineButtonLabel,
   determineBookingStatus,
   formatPriceDisclaimer,
+  combineRvAndSiteStatus,
 };
