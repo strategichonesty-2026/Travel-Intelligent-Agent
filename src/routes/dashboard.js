@@ -4,6 +4,9 @@ const profileService = require('../services/profileService');
 const { buildDealBoard } = require('../services/dealBoard');
 const { getDestinationsByCategory } = require('../domain/destinationDiscovery');
 const { paginate } = require('../domain/pagination');
+const { searchGetaways } = require('../services/getawayService');
+const { STAY_TYPE } = require('../data/getawayStaySources');
+const { COMBO_STATUS } = require('../domain/bookingStatus');
 
 const router = express.Router();
 
@@ -26,6 +29,7 @@ const DEAL_TABLE_PAGE_SIZE = 25;
 const TABS = [
   { id: 'discover', label: 'Discover' },
   { id: 'camping', label: 'Camping' },
+  { id: 'getaways', label: 'Getaways' },
   { id: 'colorado', label: 'Colorado' },
   { id: 'niagara', label: 'Niagara Falls & Great Lakes' },
   { id: 'mexico', label: 'Mexico' },
@@ -75,6 +79,19 @@ const CANDIDATE_STATUS_STYLE = {
   UNVERIFIED: { bg: BORDER, fg: MUTED },
   RESEARCHING: { bg: BORDER, fg: MUTED },
   EXCLUDED: { bg: RED, fg: '#f9eeee' },
+};
+
+const STAY_TYPE_LABEL = {
+  [STAY_TYPE.RV_RENTAL]: 'RV Rental',
+  [STAY_TYPE.CAMPSITE]: 'Campsite',
+  [STAY_TYPE.VACATION_RENTAL]: 'Cabin / Vacation Rental',
+  [STAY_TYPE.FARM_STAY]: 'Farm Stay',
+};
+
+const COMBO_STATUS_STYLE = {
+  [COMBO_STATUS.CONFIRMED]: { bg: OLIVE, fg: '#f4f1e8', label: 'Confirmed' },
+  [COMBO_STATUS.PARTIALLY_CONFIRMED]: { bg: 'rgba(63,110,122,.16)', fg: TEAL, label: 'Partially confirmed' },
+  [COMBO_STATUS.MANUAL_COORDINATION]: { bg: BORDER, fg: MUTED, label: 'Requires manual coordination' },
 };
 
 function todayIso() {
@@ -170,6 +187,23 @@ function renderCard(c, booking) {
       <ul>${(c.verification?.sources || []).map((s) => `<li>${renderSource(s)}</li>`).join('')}</ul>
       ${c.verification?.notes ? `<p class="notes">${esc(c.verification.notes)}</p>` : ''}
     </details>
+  </article>`;
+}
+
+function renderGetawayCard(c) {
+  const status = STATUS_STYLE[c.bookingStatus] || STATUS_STYLE.RESEARCH_ONLY;
+  return `
+  <article class="card">
+    <div class="card-head">
+      <h3>${esc(c.sourceName)}</h3>
+      <span class="badge" style="background:${status.bg};color:${status.fg}">${esc(c.bookingStatus.replace(/_/g, ' '))}</span>
+    </div>
+    <p class="loc">${esc(STAY_TYPE_LABEL[c.stayType] || c.stayType)}${c.name ? ` &middot; ${esc(c.name)}` : ''}</p>
+    ${c.description ? `<p class="reason">${esc(c.description)}</p>` : ''}
+    <p class="disclaimer">${esc(c.bookingStatusReason || '')}</p>
+    <div class="booking">
+      ${c.deepLink ? `<a class="btn" href="${esc(c.deepLink)}" target="_blank" rel="noopener">${c.linkType === 'OFFICIAL_BOOKING' ? 'View on Recreation.gov' : `Search on ${esc(c.sourceName)}`}</a>` : '<span class="btn-disabled">No link available</span>'}
+    </div>
   </article>`;
 }
 
@@ -485,6 +519,7 @@ router.get('/', async (req, res, next) => {
     let discoverSection = '';
     let categorySection = '';
     let profileSection = '';
+    let getawaySection = '';
 
     if (activeTab === 'camping') {
       const favorites = campgroundService.listFavorites();
@@ -544,6 +579,59 @@ router.get('/', async (req, res, next) => {
 
   ${renderDealTable(pageRows, { sort, dir, sortHref })}
   ${renderPagination({ page, totalPages, totalRows, pageStart, pageEnd, pageHref })}`;
+    } else if (activeTab === 'getaways') {
+      const locationQuery = typeof req.query.locationQuery === 'string' ? req.query.locationQuery.trim() : '';
+      const endDate = typeof req.query.endDate === 'string' ? req.query.endDate : '';
+      const maxDriveHoursRaw = Number(req.query.maxDriveHours);
+      const maxDriveHours = Number.isFinite(maxDriveHoursRaw) && maxDriveHoursRaw > 0 ? maxDriveHoursRaw : null;
+      const selectedStayTypes = Array.isArray(req.query.stayTypes)
+        ? req.query.stayTypes.filter((t) => Object.values(STAY_TYPE).includes(t))
+        : typeof req.query.stayTypes === 'string' && Object.values(STAY_TYPE).includes(req.query.stayTypes)
+          ? [req.query.stayTypes]
+          : [];
+      const hasSearched = Boolean(startDate);
+
+      let candidates = [];
+      let comboStatus = null;
+      if (hasSearched) {
+        const result = await searchGetaways({
+          startDate,
+          endDate: endDate || undefined,
+          locationQuery: locationQuery || undefined,
+          stayTypes: selectedStayTypes.length > 0 ? selectedStayTypes : undefined,
+          maxDriveHours: maxDriveHours || undefined,
+        });
+        candidates = result.candidates;
+        comboStatus = result.comboStatus;
+      }
+
+      const comboBanner = comboStatus
+        ? (() => {
+          const s = COMBO_STATUS_STYLE[comboStatus] || COMBO_STATUS_STYLE[COMBO_STATUS.MANUAL_COORDINATION];
+          return `<p class="sub">RV + campsite combo: <span class="badge" style="background:${s.bg};color:${s.fg}">${esc(s.label)}</span></p>`;
+        })()
+        : '';
+
+      getawaySection = `
+  <form class="trip-form" method="get">
+    <input type="hidden" name="tab" value="getaways" />
+    <label>Start date <input type="date" name="startDate" value="${esc(startDate)}" /></label>
+    <label>End date <input type="date" name="endDate" value="${esc(endDate)}" /></label>
+    <label>Location <input type="text" name="locationQuery" value="${esc(locationQuery)}" placeholder="e.g. Minnesota, Hayward WI" /></label>
+    <label>Max drive (hours) <input type="number" name="maxDriveHours" value="${maxDriveHours != null ? esc(maxDriveHours) : ''}" min="1" step="0.5" style="width:70px" /></label>
+    <fieldset>
+      <legend>Stay types (all if none checked)</legend>
+      ${Object.values(STAY_TYPE).map((t) => `<label class="chip"><input type="checkbox" name="stayTypes" value="${esc(t)}" ${selectedStayTypes.includes(t) ? 'checked' : ''} /> ${esc(STAY_TYPE_LABEL[t])}</label>`).join('')}
+    </fieldset>
+    <button type="submit" class="submit-btn">Find getaways</button>
+  </form>
+  <p class="sub">Short, driving-distance getaways across RV rentals, campsites, cabins, and farm stays &mdash; no destination required, just dates. Every candidate is an honest search link unless Recreation.gov is sourcing it directly (shown as CHECK AVAILABILITY, never confirmed booked). See TECH_DECISION.md's "Flexible Getaway Finder" entry for the full provider research behind this.</p>
+  ${comboBanner}
+  ${!hasSearched
+      ? '<p class="empty">Enter a start date above to search.</p>'
+      : candidates.length === 0
+        ? '<p class="empty">No candidates matched this search.</p>'
+        : `<div class="grid">${candidates.map(renderGetawayCard).join('')}</div>`}`;
     } else if (activeTab === 'cruise') {
       categorySection = `<p class="empty">No cruise line data has been researched yet &mdash; spec section 4 lists "cruise line" as a booking-link category, but nothing here fabricates itineraries or pricing without a real source. This tab will populate once that research pass happens.</p>`;
     } else if (activeTab === 'profile') {
@@ -678,6 +766,7 @@ router.get('/', async (req, res, next) => {
     <h2>${esc(TABS.find((t) => t.id === activeTab).label)}</h2>
     ${discoverSection}
     ${campgroundSection}
+    ${getawaySection}
     ${categorySection}
     ${profileSection}
   </main>

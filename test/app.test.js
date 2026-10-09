@@ -396,6 +396,39 @@ test('POST /getaways returns deep-link candidates across every stay type by defa
   }
 });
 
+test('GET /?tab=getaways with no startDate shows the empty-state prompt, not an error', async () => {
+  const app = createApp();
+  const server = app.listen(0);
+  const { port } = server.address();
+
+  try {
+    const res = await fetch(`http://localhost:${port}/?tab=getaways`);
+    const html = await res.text();
+    assert.equal(res.status, 200);
+    assert.match(html, /Enter a start date above to search/);
+  } finally {
+    server.close();
+  }
+});
+
+test('GET /?tab=getaways&startDate=...&stayTypes=FARM_STAY renders deep-link candidate cards', async () => {
+  const app = createApp();
+  const server = app.listen(0);
+  const { port } = server.address();
+
+  try {
+    const res = await fetch(`http://localhost:${port}/?tab=getaways&startDate=2026-11-14&stayTypes=FARM_STAY`);
+    const html = await res.text();
+    assert.equal(res.status, 200);
+    assert.match(html, /Harvest Hosts/);
+    assert.match(html, /Farm Stay U\.S\./);
+    assert.match(html, />RESEARCH ONLY</);
+    assert.doesNotMatch(html, /No candidates matched/);
+  } finally {
+    server.close();
+  }
+});
+
 test('GET /scoring/weights returns default trip and camping weights', async () => {
   const app = createApp();
   const server = app.listen(0);
