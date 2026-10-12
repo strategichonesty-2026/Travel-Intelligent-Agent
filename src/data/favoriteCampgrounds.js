@@ -35,6 +35,10 @@ const RESEARCH_PASS_2026_09_21 = '2026-09-21T00:00:00.000Z';
 // Same reasoning, one week later still — see the "2026-09-28 weekly re-verification pass" note below.
 const RESEARCH_PASS_2026_09_28 = '2026-09-28T00:00:00.000Z';
 
+// Same reasoning, two weeks later (no pass ran 2026-10-05) — see the "2026-10-12 weekly
+// re-verification pass" note below.
+const RESEARCH_PASS_2026_10_12 = '2026-10-12T00:00:00.000Z';
+
 function id(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
@@ -529,6 +533,28 @@ const FAVORITE_CAMPGROUNDS = [
  */
 
 /**
+ * 2026-10-12 weekly re-verification pass (no pass ran 2026-10-05 — this one covers both weeks):
+ * outbound access is still totally blocked, for a sixth consecutive pass. This time the failure
+ * signature changed from the prior five passes' proxy CONNECT 403 to a DNS-level `getaddrinfo
+ * ENOTFOUND` on every tested domain — dnr.state.mn.us, washburncountyparks.us, campspot.com,
+ * google.com, en.wikipedia.org, and even example.com all failed to resolve — while
+ * www.anthropic.com resolved and fetched successfully. That confirms this is still a
+ * destination-scoped network policy (an allowlist, not an open-then-blocked proxy), not a
+ * transient outage, and it still has no exception for any campground/park/reservation domain. Only
+ * WebSearch's aggregated summaries were reachable — still not enough to honestly upgrade or bump
+ * verifiedAt on any of the 17 favorites or 12 prior discoveries, so none of their fields were
+ * touched this pass either.
+ * One new discovery was added below: Lakeshore RV Park (Ortonville, MN, on Big Stone Lake), at LOW
+ * confidence on the same search-summary-only basis as all prior discoveries added while this
+ * block has been in effect.
+ * Recommendation (unchanged, now six passes running): the traveler should widen this environment's
+ * network access policy (Allowed domains, or a broader access level) to let this session reach
+ * official park/campground/reservation-system domains directly — see the environment's network
+ * settings. Re-run this pass once that access is restored; confirm restoration against a plain
+ * non-campground page first, exactly as this pass did, before trusting any "still blocked" result.
+ */
+
+/**
  * Not a campground — the official Wisconsin DNR reservation PLATFORM used across the entire WI
  * state park system (spec section 10's "Wisconsin GoingToCamp system" entry). Kept separate from
  * FAVORITE_CAMPGROUNDS since it has no qualification verdict of its own; individual WI state
@@ -824,6 +850,34 @@ const SIMILAR_CAMPGROUND_DISCOVERY = [
     ],
     notes: 'New discovery, 2026-09-28 pass — at the edge of the traveler\'s stated 0-5 hour driving radius (~4.5h estimate; unlike the rest of this file, not pulled from a routing API). Outbound access was blocked this pass too (see the "2026-09-28 weekly re-verification pass" note above the FAVORITE_CAMPGROUNDS/SIMILAR_CAMPGROUND_DISCOVERY boundary), so nothing here was independently navigated to — every fact is from WebSearch summaries, treat as a lead, not a confirmed fact. Strongest signal of this pass\'s two finds: 52 of ~96 sites reported as true full-hookup (water + sewer + electric) on a reservable, 100%-online-booking official ReserveAmerica system, similar in strength to Elk Rock\'s equestrian sites already in this list. Biggest gap: sites are described only as "along the lakeshore" / "on or near the water" at the campground level — no individual site number was confirmed directly waterfront or lake-view, so waterfrontStatus is set to LAKE_ACCESS (non-qualifying) pending a site-map check, consistent with how this file treats every other "near the water" claim that stops short of a numbered lakefront tier (e.g. Shell Lake\'s confirmed #1-12). Electric amperage, bathhouse type, and nightly rate were not surfaced and are left UNKNOWN/unconfirmed rather than assumed.',
     verifiedAt: RESEARCH_PASS_2026_09_28,
+  }),
+  record({
+    requestedName: null,
+    resolvedName: 'Lakeshore RV Park (Ortonville, MN, on Big Stone Lake)',
+    location: 'Ortonville, MN (Big Stone County), on Big Stone Lake',
+    drivingHoursFrom55449: 3,
+    officialWebsiteUrl: null,
+    officialReservationUrl: null,
+    noReservationReason: 'Aggregator listings (RoverPass via AAA Trip Canvas) describe instant online booking from $60/night, but no direct reservation URL for this specific property was surfaced in search results this pass — only phone numbers ((320) 839-3701 / (800) 936-7386) and third-party aggregator pages were found.',
+    seasonOfOperation: 'Conflicting: one aggregator gives closed dates Sept 11 - April 14 (i.e. open mid-April - early September), another gives April 1 - October 31 — not independently confirmed.',
+    siteTypes: ['6 full-hookup RV sites (per one aggregator) or ~94 total sites (per another, inconsistent counts)', '2 cabins', '4 tent sites'],
+    waterfrontStatus: WATERFRONT_STATUS.LAKE_ACCESS,
+    waterHookup: HOOKUP.YES,
+    electricHookup: HOOKUP.YES,
+    electricAmperage: AMPERAGE.UNKNOWN,
+    sewerHookup: HOOKUP.YES,
+    bathhouse: { flushToilets: HOOKUP.UNKNOWN, hotColdWater: HOOKUP.UNKNOWN, hotShowers: HOOKUP.UNKNOWN },
+    nightlyRate: { amount: 60, currency: 'USD', unit: 'night (starting rate, per aggregator)', notes: '"From $60 USD/night" per RoverPass-sourced aggregator content (AAA Trip Canvas); taxes/fees calculated at checkout per that source. Not independently confirmed via the property\'s own site.' },
+    cancellationPolicy: null,
+    confidence: EVIDENCE_CONFIDENCE.LOW,
+    sources: [
+      'https://www.campendium.com/lakeshore-rv-park-ortonville-mn',
+      'https://exploreminnesota.com/profile/lakeshore-rv-park-inc/437',
+      'https://www.outdoorsy.com/campground-rental/ortonville_mn/lakeshore-rv-park-ortonville_425-listing',
+      'https://ww1.aaa.com/tripcanvas/campground/lakeshore-rv-park-38081',
+    ],
+    notes: 'New discovery, 2026-10-12 pass. Outbound access to non-allowlisted domains was blocked this pass too (see the "2026-10-12 weekly re-verification pass" note above the FAVORITE_CAMPGROUNDS/SIMILAR_CAMPGROUND_DISCOVERY boundary), so nothing here was independently navigated to — every fact is from WebSearch summaries, treat as a lead, not a confirmed fact. Full hookup (water/electric/sewer, 20/30/50A per site type) on Big Stone Lake is the strongest signal, but sources disagree sharply on total site count (6 full-hookup sites vs. ~94 total sites) and season dates, and no site-level waterfront confirmation exists (hence LAKE_ACCESS, non-qualifying, pending confirmation) despite the "on Big Stone Lake" framing. No official-site URL or direct reservation URL was found in search results this pass (only aggregator/booking-platform pages) — the property\'s own domain and booking page need to be confirmed with a direct fetch once outbound access allows it.',
+    verifiedAt: RESEARCH_PASS_2026_10_12,
   }),
 ];
 

@@ -615,3 +615,46 @@ See each record's `notes` field in `src/data/favoriteCampgrounds.js` for full ca
 **Recommendation:** re-run this pass once outbound access to campground/park/reservation domains
 is restored from this environment — verify restoration against a plain, unrelated page first
 (not a campground domain) before trusting a "still blocked" finding on this list specifically.
+
+---
+
+## 2026-10-12 weekly re-verification pass
+
+No pass ran on 2026-10-05; this one covers both weeks. Outbound access is still blocked, for a
+sixth consecutive pass, but the failure signature changed: direct-fetch attempts via `WebFetch`
+against `example.com`, `www.google.com`, `en.wikipedia.org`, `www.washburncountyparks.us`,
+`www.campspot.com`, and `www.dnr.state.mn.us` all failed with DNS-level `getaddrinfo ENOTFOUND`
+(not the prior five passes' proxy CONNECT 403), while `www.anthropic.com` resolved and fetched
+normally. That is consistent with a destination-scoped allowlist rather than an open-then-blocked
+proxy, and it still carves out no exception for any campground/park/reservation domain. The
+proxy's own status endpoint (`/__agentproxy/status`) still reports non-selective policy
+(`"selective": false`) with no per-tool exception. Only `WebSearch`'s aggregated summaries were
+reachable, which again does not meet this document's evidence bar for upgrading or refreshing
+`verifiedAt` on an existing HIGH/MEDIUM-confidence fact; a few previously-flagged leads (a possible
+Herbster online-booking-via-Campspot system, Country Campground's conflicting $35-$50 rate
+figures, Champions Riverside's sewer hookup) were re-searched this pass but still only surface
+third-party/aggregator confirmation, not an official-source fetch, so none were written into the
+data file.
+
+**No field on any of the 17 favorites or 12 prior discoveries was changed this pass.**
+
+**One new discovery was added** to `SIMILAR_CAMPGROUND_DISCOVERY`, at LOW confidence since it's
+sourced from WebSearch summaries only, not a direct fetch:
+
+- **Lakeshore RV Park** (Ortonville, MN, on Big Stone Lake) — full hookup (water/electric/sewer)
+  sites on a lake, within the traveler's driving radius (~3h estimate). Sources disagree sharply
+  on total site count (6 full-hookup sites per one aggregator vs. ~94 total sites per another) and
+  on season dates, and no site-level waterfront confirmation exists despite the "on Big Stone
+  Lake" framing, so `waterfrontStatus` is recorded as `LAKE_ACCESS` (non-qualifying) pending a
+  site-map check. No official-site URL or direct reservation URL was found in search results this
+  pass — only aggregator/booking-platform pages (Campendium, Explore Minnesota, Outdoorsy, AAA
+  Trip Canvas) — so `officialReservationUrl` is left `null` with a `noReservationReason`.
+
+See its `notes` field in `src/data/favoriteCampgrounds.js` for full caveats.
+
+**Recommendation:** this is now the sixth consecutive pass blocked from direct official-source
+verification. The traveler should widen this environment's network access policy (its Allowed
+domains list, or a broader access level) to let future passes reach official
+park/campground/reservation-system domains directly — see the environment's network settings.
+Re-run this pass once that access is restored; verify restoration against a plain, unrelated page
+first before trusting a "still blocked" finding on this list specifically.
